@@ -4,6 +4,14 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.7] — 2026-07-03
+
+### Fixed
+
+- The Codex token/cost lookup now resolves a session's rollout file **at most
+  once** (the "not found" result is cached too), instead of re-scanning
+  `~/.codex/sessions` on every Codex event.
+
 ## [0.1.6] — 2026-07-03
 
 ### Added
@@ -110,6 +118,7 @@ First public beta (Phases 1–6).
 - The local server enforces a host-header guard, a JSON-only content type, and
   a request-body size limit.
 
+[0.1.7]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.3...v0.1.4

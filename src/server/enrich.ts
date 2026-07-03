@@ -53,13 +53,19 @@ export function createEnricher(
   // rollout path is resolved once per session, and usage is re-parsed only when
   // the transcript's mtime changes.
   const usageCache = new Map<string, { mtime: number; usage: Usage | null }>();
-  const codexPath = new Map<string, string>();
+  const codexPath = new Map<string, string | null>();
 
   async function enrichUsage(event: NormalizedAgentEvent) {
     let path: string | null;
     if (event.agent === "codex") {
-      path = codexPath.get(event.sessionId) ?? findCodexRollout(event.sessionId, event.repoPath ?? event.cwd);
-      if (path) codexPath.set(event.sessionId, path);
+      // Resolve (walk ~/.codex/sessions) at most ONCE per session — cache the
+      // null result too, or an unmatched session re-walks on every event.
+      if (codexPath.has(event.sessionId)) {
+        path = codexPath.get(event.sessionId) ?? null;
+      } else {
+        path = findCodexRollout(event.sessionId, event.repoPath ?? event.cwd);
+        codexPath.set(event.sessionId, path);
+      }
     } else {
       path = event.transcriptPath ?? null;
     }
