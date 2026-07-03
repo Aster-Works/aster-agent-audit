@@ -4,6 +4,29 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.12] — 2026-07-04
+
+### Changed
+
+- **Risk Radar actions are now honest about secrets.** The console redacts
+  secrets before storing them, so a finding's record never holds the raw key —
+  the real value lives in the agent's own logs and its source config. So:
+  - **Removed "Delete record"** and **"Ignore this rule."** Deleting an
+    already-redacted audit record does not remove an exposed secret, so offering
+    it was misleading.
+  - **Resolve now marks a finding handled instead of hiding it.** A resolved
+    finding stays in the list — struck through, badged "Resolved", and out of the
+    active safety score — with **Reopen** to undo. Findings are never deleted;
+    the honest audit record is kept.
+
+### Added
+
+- **Rotate-the-key guidance on secret findings.** Each secret finding now spells
+  out that the raw value still sits in plaintext in the agent's log (and wherever
+  it came from), that deleting a record wouldn't undo the exposure, and links to
+  where to **rotate the key** — Anthropic, GitHub, Supabase, OpenAI, or AWS, with
+  a generic pointer otherwise. Rotation is the only real fix.
+
 ## [0.1.11] — 2026-07-04
 
 ### Added

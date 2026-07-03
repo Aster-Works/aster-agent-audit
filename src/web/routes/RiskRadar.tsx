@@ -8,8 +8,9 @@ import {
   Grid3x3,
   ArrowRight,
   Check,
-  Trash2,
-  BellOff,
+  KeyRound,
+  ExternalLink,
+  RotateCcw,
 } from "lucide-react";
 import {
   RISK_CATEGORIES,
@@ -49,7 +50,7 @@ export function RiskRadar() {
 
   // A finding can be acted on only when it's backed by the local DB — MCP
   // config-scan findings reflect current config state, not a stored record.
-  const canAct = (r: RiskRow) => isLive && r.sessionId !== "mcp-config-scan";
+  const canResolve = (r: RiskRow) => isLive && r.sessionId !== "mcp-config-scan";
 
   async function mutate(path: string, body: object) {
     setBusy(true);
@@ -59,45 +60,40 @@ export function RiskRadar() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      setSelectedId("");
       await loadLive();
     } finally {
       setBusy(false);
     }
   }
+  const setStatus = (r: RiskRow, status: "open" | "resolved") =>
+    mutate("/api/risk-findings/resolve", { id: r.id, status });
 
-  const resolveFinding = (r: RiskRow) => mutate("/api/risk-findings/resolve", { id: r.id });
-  const deleteFinding = (r: RiskRow) => {
-    const msg =
-      r.category === "secrets"
-        ? "Delete this record? The finding and the captured event it came from will be permanently removed."
-        : "Delete this record? The finding and its source event will be permanently removed.";
-    if (typeof window !== "undefined" && !window.confirm(msg)) return;
-    return mutate("/api/risk-findings/delete", { id: r.id, purgeEvent: true });
-  };
-  const ignoreRule = (r: RiskRow) => {
-    const msg = `Ignore every "${r.ruleId}" finding? They stop showing on the Risk Radar (raw records are kept). Undo by editing ~/.aster-agent-console/policy.json.`;
-    if (typeof window !== "undefined" && !window.confirm(msg)) return;
-    return mutate("/api/risk-findings/ignore-rule", { ruleId: r.ruleId });
-  };
+  // Active (unresolved) findings drive the score, counters and radar; resolved
+  // ones stay in the list but marked, so you can see what you've handled.
+  const active = useMemo(() => risk.filter((r) => r.status !== "resolved"), [risk]);
+  const resolvedCount = risk.length - active.length;
 
   const counts = useMemo(() => {
     const m = new Map<RiskSeverity, number>();
     for (const sev of SEVERITY_ORDER) m.set(sev, 0);
-    for (const r of risk) m.set(r.severity, (m.get(r.severity) ?? 0) + 1);
+    for (const r of active) m.set(r.severity, (m.get(r.severity) ?? 0) + 1);
     return m;
-  }, [risk]);
+  }, [active]);
 
-  const cleanEvents = Math.max(0, overview.totals.toolCalls - risk.length);
-  const radar = radarScores(risk, RISK_CATEGORIES);
+  const cleanEvents = Math.max(0, overview.totals.toolCalls - active.length);
+  const radar = radarScores(active, RISK_CATEGORIES);
   // Safety surface: invert risk so a fully safe setup reads as a big, full
   // green hexagon. Categories with findings dip inward.
-  const safety = computeSafety(risk);
+  const safety = computeSafety(active);
   const safetyRadar = toSafetyRadar(radar);
 
-  const sorted = [...risk].sort(
-    (a, b) => SEVERITY_ORDER.indexOf(b.severity) - SEVERITY_ORDER.indexOf(a.severity)
-  );
+  // Active first (by severity), resolved last.
+  const sorted = [...risk].sort((a, b) => {
+    const ar = a.status === "resolved" ? 1 : 0;
+    const br = b.status === "resolved" ? 1 : 0;
+    if (ar !== br) return ar - br;
+    return SEVERITY_ORDER.indexOf(b.severity) - SEVERITY_ORDER.indexOf(a.severity);
+  });
 
   return (
     <div className="space-y-4 p-4">
@@ -124,7 +120,11 @@ export function RiskRadar() {
         <Panel
           title="Recent Flagged Events"
           icon={ListChecks}
-          subtitle={`${risk.length} findings · ${counts.get("critical")} critical`}
+          subtitle={
+            resolvedCount > 0
+              ? `${active.length} active · ${resolvedCount} resolved`
+              : `${active.length} findings · ${counts.get("critical")} critical`
+          }
           noBodyPadding
         >
           <div className="max-h-[440px] overflow-y-auto">
@@ -147,7 +147,7 @@ export function RiskRadar() {
             iconColor={safety.color}
             subtitle="Fuller and greener means safer"
           >
-            <SafetyHeadline safety={safety} findings={risk.length} />
+            <SafetyHeadline safety={safety} findings={active.length} />
             <RiskRadarChart
               data={safetyRadar}
               height={196}
@@ -156,7 +156,7 @@ export function RiskRadar() {
             />
           </Panel>
           <Panel title="Risk Matrix" icon={Grid3x3} subtitle="Category × severity">
-            <RiskMatrix risk={risk} />
+            <RiskMatrix risk={active} />
           </Panel>
         </div>
 
@@ -180,12 +180,9 @@ export function RiskRadar() {
           {selected ? (
             <FindingDetails
               row={selected}
-              canAct={canAct(selected)}
-              canIgnore={isLive}
+              canResolve={canResolve(selected)}
               busy={busy}
-              onResolve={() => resolveFinding(selected)}
-              onDelete={() => deleteFinding(selected)}
-              onIgnore={() => ignoreRule(selected)}
+              onSetStatus={(status) => setStatus(selected, status)}
             />
           ) : (
             <EmptyState icon={ShieldCheck} title="No findings" />
@@ -265,13 +262,15 @@ function FindingRow({
   onClick: () => void;
 }) {
   const Icon = CATEGORY_ICON[row.category];
+  const isResolved = row.status === "resolved";
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
         "flex w-full min-w-0 items-start gap-2.5 border-b border-line/60 px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-surface-2",
-        selected && "bg-surface-2"
+        selected && "bg-surface-2",
+        isResolved && "opacity-55"
       )}
       style={selected ? { boxShadow: `inset 2px 0 0 ${SEVERITY_COLOR_VAR[row.severity]}` } : undefined}
     >
@@ -283,8 +282,16 @@ function FindingRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="aac-truncate text-[12.5px] font-medium text-ink">{row.title}</span>
-          <RiskBadge severity={row.severity} />
+          <span className={cn("aac-truncate text-[12.5px] font-medium text-ink", isResolved && "line-through")}>
+            {row.title}
+          </span>
+          {isResolved ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-safe" style={{ background: "color-mix(in srgb, var(--color-safe) 14%, transparent)" }}>
+              <Check size={10} /> Resolved
+            </span>
+          ) : (
+            <RiskBadge severity={row.severity} />
+          )}
         </div>
         <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-3">
           <AgentDot agent={row.agent} />
@@ -297,24 +304,37 @@ function FindingRow({
   );
 }
 
+// Where to rotate an exposed credential, matched from the redacted evidence
+// prefix (mask() keeps sk-ant-/ghp_/AKIA… ) or the kind named in the description.
+const ROTATE_TARGETS: { test: RegExp; provider: string; url?: string }[] = [
+  { test: /sk-ant-|anthropic/i, provider: "Anthropic", url: "https://console.anthropic.com/settings/keys" },
+  { test: /gh[pousr]_|github_pat_|github/i, provider: "GitHub", url: "https://github.com/settings/tokens" },
+  { test: /sb[ps]_|sbsecret_|supabase/i, provider: "Supabase", url: "https://supabase.com/dashboard/project/_/settings/api" },
+  { test: /\bsk-/, provider: "OpenAI", url: "https://platform.openai.com/api-keys" },
+  { test: /AKIA[0-9A-Z]{16}|aws/i, provider: "AWS", url: "https://console.aws.amazon.com/iam/home#/security_credentials" },
+  { test: /postgres|mysql|mongodb|url_credential/i, provider: "your database / service" },
+];
+function rotationTarget(row: RiskRow): { provider: string; url?: string } {
+  const hay = `${row.redactedEvidence ?? ""} ${row.description}`;
+  for (const t of ROTATE_TARGETS) if (t.test.test(hay)) return { provider: t.provider, url: t.url };
+  return { provider: "the issuing provider" };
+}
+
 function FindingDetails({
   row,
-  canAct,
-  canIgnore,
+  canResolve,
   busy,
-  onResolve,
-  onDelete,
-  onIgnore,
+  onSetStatus,
 }: {
   row: RiskRow;
-  canAct: boolean;
-  canIgnore: boolean;
+  canResolve: boolean;
   busy: boolean;
-  onResolve: () => void;
-  onDelete: () => void;
-  onIgnore: () => void;
+  onSetStatus: (status: "open" | "resolved") => void;
 }) {
   const isMcp = row.sessionId === "mcp-config-scan";
+  const isResolved = row.status === "resolved";
+  const isSecret = row.category === "secrets";
+  const rotate = isSecret ? rotationTarget(row) : null;
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -351,46 +371,69 @@ function FindingDetails({
         <p className="mt-1 text-[12px] leading-relaxed text-ink-2">{row.recommendedAction}</p>
       </div>
 
-      {/* Actions: resolve / delete a stored record, or ignore the whole rule */}
-      {(canAct || canIgnore) && (
-        <div className="space-y-2 border-t border-line pt-3">
-          {canAct && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onResolve}
-                className="inline-flex items-center gap-1.5 rounded-md border border-safe/40 bg-safe/10 px-2.5 py-1.5 text-[12px] font-medium text-safe hover:bg-safe/20 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Check size={13} /> Resolve
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={onDelete}
-                className="inline-flex items-center gap-1.5 rounded-md border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-[12px] font-medium text-danger hover:bg-danger/20 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <Trash2 size={13} /> Delete record
-              </button>
-              <span className="ml-auto text-[10px] text-ink-3">Resolve dismisses; Delete purges the record.</span>
-            </div>
-          )}
-          {isMcp && (
-            <p className="text-[11px] leading-snug text-ink-3">
-              This reflects your current MCP configuration — fix the config to clear it, or ignore the rule below.
+      {/* Secret remediation: be honest that the real key lives elsewhere, and
+          point to where to rotate it. Deleting this (redacted) record wouldn't
+          remove the secret. */}
+      {isSecret && rotate && (
+        <div className="rounded-md border border-danger/30 bg-danger/[0.06] px-3 py-2.5">
+          <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-danger">
+            <KeyRound size={12} /> Rotate the key — this is the real fix
+          </div>
+          <p className="mt-1 text-[12px] leading-relaxed text-ink-2">
+            This console never stored the raw key (the record above is redacted). The real value still
+            sits in plaintext in the agent’s own log
+            {row.agent === "codex" ? " (~/.codex/sessions/…)" : row.agent === "claude-code" ? " (~/.claude/projects/…)" : ""}
+            {isMcp ? " and in the MCP config it came from" : " and wherever it came from (e.g. a .env)"} — so it’s
+            already exposed. Deleting a record wouldn’t undo that; <span className="text-ink">rotate the key</span> to neutralize it.
+          </p>
+          {rotate.url ? (
+            <a
+              href={rotate.url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-[12px] font-medium text-danger hover:bg-danger/20"
+            >
+              <KeyRound size={13} /> Rotate at {rotate.provider} <ExternalLink size={12} />
+            </a>
+          ) : (
+            <p className="mt-1.5 text-[11px] text-ink-3">
+              Rotate at {rotate.provider} and update the value where it’s configured.
             </p>
           )}
-          {canIgnore && (
+        </div>
+      )}
+
+      {/* Resolve / reopen — never delete. Marks a reviewed finding as handled. */}
+      {canResolve ? (
+        <div className="flex items-center gap-2 border-t border-line pt-3">
+          {isResolved ? (
             <button
               type="button"
               disabled={busy}
-              onClick={onIgnore}
-              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[11px] font-medium text-ink-2 hover:border-ink-3/40 disabled:cursor-not-allowed disabled:opacity-40"
+              onClick={() => onSetStatus("open")}
+              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] font-medium text-ink-2 hover:border-ink-3/40 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <BellOff size={12} /> Ignore this rule ({row.ruleId})
+              <RotateCcw size={13} /> Reopen
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onSetStatus("resolved")}
+              className="inline-flex items-center gap-1.5 rounded-md border border-safe/40 bg-safe/10 px-2.5 py-1.5 text-[12px] font-medium text-safe hover:bg-safe/20 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Check size={13} /> Mark resolved
             </button>
           )}
+          <span className="ml-auto text-[10px] text-ink-3">Marks it handled — the record is kept, never deleted.</span>
         </div>
+      ) : (
+        isMcp && (
+          <p className="border-t border-line pt-3 text-[11px] leading-snug text-ink-3">
+            This reflects your current MCP configuration — it clears once you fix the config (move the key to
+            an env-var reference like <span className="font-mono">${"{VAR}"}</span> and rotate it).
+          </p>
+        )
       )}
     </div>
   );

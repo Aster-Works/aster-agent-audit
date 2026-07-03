@@ -38,12 +38,11 @@ export function assembleDataset(db: AgentConsoleDb, status: CollectorStatus): Da
     status: "open",
   }));
 
-  // ignoreRules also hides matching event findings, not just MCP ones.
-  // Resolved findings are dismissed by the user → excluded from the radar.
-  const dbRisk = applyPolicy(
-    db.getRisk().filter((r) => r.status !== "resolved"),
-    mcp.policy
-  );
+  // ignoreRules (policy.json) hides matching findings, MCP and event alike.
+  // Resolved findings are KEPT — they carry status:"resolved" so the Risk Radar
+  // can mark them as handled (and drop them from the active safety score)
+  // without deleting the honest audit record.
+  const dbRisk = applyPolicy(db.getRisk(), mcp.policy);
   const risk = [...mcpRows, ...dbRisk];
 
   const fileChanges = db.getFileChanges();
