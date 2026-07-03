@@ -2,6 +2,8 @@
 
 > Local-first AI coding agent **safety, work audit, and outcome** dashboard for Claude Code and Codex.
 
+![Aster Agent Console — product tour](docs/assets/demo-tour.gif)
+
 Aster Agent Console makes the work of AI coding agents visible along three axes:
 
 1. **Safety** — dangerous shell commands, secret exposure, MCP permission risk, network/file/git operations.
@@ -113,6 +115,17 @@ event is spooled to `~/.aster-agent-console/spool/` and replayed on the next
 - **Repo Activity** — directory treemap, hot files, git timeline, contribution heatmap, file inspector.
 - **Risk Radar** — severity counters, risk surface radar, category × severity matrix, finding details, MCP permission map, policy timeline.
 - **Agents** / **Settings** — per-agent comparison; integrations, storage, redaction & risk policy, diagnostics.
+
+|  |  |
+|---|---|
+| ![Overview](docs/assets/overview.png) | ![Risk Radar](docs/assets/risk-radar.png) |
+| **Overview** | **Risk Radar** |
+| ![Session Replay](docs/assets/session-replay.png) | ![Repo Activity](docs/assets/repo-activity.png) |
+| **Session Replay** | **Repo Activity** |
+| ![Agents](docs/assets/agents.png) | ![Settings](docs/assets/settings.png) |
+| **Agents** | **Settings** |
+
+<sub>Screens shown with built-in demo data.</sub>
 
 ## Develop
 
