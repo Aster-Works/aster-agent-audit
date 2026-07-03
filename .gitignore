@@ -1,0 +1,15 @@
+node_modules
+dist
+dist-cli
+*.local
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+.aster-agent-console
+coverage
+
+# internal working notes / packed tarballs (not for the public repo)
+HANDOFF.md
+*.tgz

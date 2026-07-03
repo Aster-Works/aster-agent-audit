@@ -1,0 +1,134 @@
+@import "tailwindcss";
+
+/*
+  Aster Agent Console — design tokens (03_UI_UX_Spec).
+  Developer cockpit: dense, dark, technically credible. Accent colors
+  encode meaning (agent identity, risk severity), surfaces stay neutral.
+*/
+@theme {
+  /* Surfaces */
+  --color-bg: #090b0f;
+  --color-surface: #11151c;
+  --color-surface-2: #171d26;
+  --color-surface-3: #1d2531;
+  --color-line: #253041;
+  --color-line-soft: #1b2230;
+
+  /* Text */
+  --color-ink: #f4f7fb;
+  --color-ink-2: #9aa8ba;
+  --color-ink-3: #657386;
+
+  /* Agent identity */
+  --color-claude: #34d399;
+  --color-codex: #22d3ee;
+  --color-cursor: #a78bfa;
+  --color-gemini: #f472b6;
+
+  /* Semantic / risk */
+  --color-info: #38bdf8;
+  --color-safe: #10b981;
+  --color-low: #84cc16;
+  --color-warn: #f59e0b;
+  --color-danger: #ef4444;
+  --color-sel: #d946ef;
+
+  /* Type */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Geist Mono", "SFMono-Regular",
+    Menlo, Consolas, monospace;
+
+  /* Radii */
+  --radius-card: 10px;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-line);
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Stable, technical scrollbars */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-surface-3);
+    border-radius: 8px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #2a3441;
+    background-clip: padding-box;
+  }
+
+  *::selection {
+    background: color-mix(in srgb, var(--color-sel) 35%, transparent);
+    color: var(--color-ink);
+  }
+}
+
+@layer components {
+  /* Reusable surface card — used across every screen for consistent density. */
+  .aac-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+  }
+
+  .aac-card-2 {
+    background-color: var(--color-surface-2);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+  }
+
+  /* Subtle inset panels (inspector rows, metric tiles) */
+  .aac-inset {
+    background-color: color-mix(in srgb, var(--color-bg) 55%, transparent);
+    border: 1px solid var(--color-line-soft);
+  }
+
+  /* Truncation helper for long file paths / commands */
+  .aac-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Monospaced numeric alignment for metrics */
+  .aac-tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .aac-grid-bg {
+    background-image: linear-gradient(
+        to right,
+        var(--color-line-soft) 1px,
+        transparent 1px
+      ),
+      linear-gradient(to bottom, var(--color-line-soft) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+}
