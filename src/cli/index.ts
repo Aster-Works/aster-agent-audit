@@ -47,7 +47,10 @@ program
   .option("--dry-run", "detect possible hook config but do not modify or create anything")
   .option("--install-hooks", "install collector hooks into detected agents (backs up first)")
   .option("-y, --yes", "skip the confirmation prompt when installing hooks")
-  .action((opts) => init({ dryRun: opts.dryRun, installHooks: opts.installHooks, yes: opts.yes }));
+  .option("--no-service", "with --install-hooks, skip installing the always-on background collector")
+  .action((opts) =>
+    init({ dryRun: opts.dryRun, installHooks: opts.installHooks, yes: opts.yes, noService: opts.service === false })
+  );
 
 program
   .command("scan")

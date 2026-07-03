@@ -36,7 +36,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   dataset: getDemoDataset(),
   repo: "all",
   agentFilter: "all",
-  dateRange: "today",
+  dateRange: "7d",
   search: "",
 
   setSource: (source) => {

@@ -35,16 +35,28 @@ export function seeded(seed: number): () => number {
   };
 }
 
-export function spark(seed: number, n: number, base: number, amp: number): number[] {
-  const rng = seeded(seed);
-  const out: number[] = [];
-  let v = base;
-  for (let i = 0; i < n; i++) {
-    v += (rng() - 0.45) * amp;
-    v = Math.max(0, v);
-    out.push(Math.round(v * 100) / 100);
+/** Real per-agent activity: event counts bucketed across the data's time span. */
+export function activitySpark(
+  events: NormalizedAgentEvent[],
+  agent: AgentName,
+  n = 14
+): number[] {
+  const ts = events
+    .filter((e) => e.agent === agent)
+    .map((e) => Date.parse(e.timestamp))
+    .filter((t) => !Number.isNaN(t))
+    .sort((a, b) => a - b);
+  const buckets = new Array<number>(n).fill(0);
+  if (ts.length === 0) return buckets;
+  const min = ts[0];
+  const span = Math.max(1, ts[ts.length - 1] - min);
+  for (const t of ts) {
+    let i = Math.floor(((t - min) / span) * n);
+    if (i >= n) i = n - 1;
+    if (i < 0) i = 0;
+    buckets[i] += 1;
   }
-  return out;
+  return buckets;
 }
 
 // --- helpers ---------------------------------------------------------------
@@ -85,8 +97,9 @@ export function buildOverview(
   range = { from: "", to: "", label: "Today" }
 ): OverviewSnapshot {
   const agents: AgentName[] = ["claude-code", "codex"];
+  const allEvents = Object.values(eventsBySession).flat();
 
-  const perAgent: AgentRollup[] = agents.map((agent, idx) => {
+  const perAgent: AgentRollup[] = agents.map((agent) => {
     const own = sessions.filter((s) => s.agent === agent);
     const sum = (f: (s: AgentSession) => number | undefined) =>
       own.reduce((acc, s) => acc + (f(s) ?? 0), 0);
@@ -110,7 +123,7 @@ export function buildOverview(
       testsFailed,
       riskFindings: risk.filter((r) => r.agent === agent).length,
       successRate,
-      spark: spark(0x1000 + idx * 977, 14, agent === "claude-code" ? 6 : 4, 4),
+      spark: activitySpark(allEvents, agent),
     };
   });
 

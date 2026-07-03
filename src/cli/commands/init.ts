@@ -14,7 +14,7 @@ import { detectAgents } from "../util/detect";
 import { brand, check, heading, line, sym } from "../util/ui";
 import { installHooksCmd } from "./hooks";
 
-export type InitOptions = { dryRun?: boolean; installHooks?: boolean; yes?: boolean };
+export type InitOptions = { dryRun?: boolean; installHooks?: boolean; yes?: boolean; noService?: boolean };
 
 const DEFAULT_CONFIG = {
   version: 1,
@@ -91,9 +91,16 @@ export async function init(opts: InitOptions = {}): Promise<void> {
     line(`  ${pc.dim("No Claude Code or Codex config found. You can still explore with demo data.")}`);
   }
 
-  // 3. Hook installation.
+  // 3. Hook installation + always-on background collector (default with hooks).
   if (opts.installHooks) {
     await installHooksCmd({ dryRun, yes: opts.yes });
+    if (!dryRun && !opts.noService) {
+      const { serviceInstall } = await import("./service");
+      serviceInstall({ skipBrand: true });
+    } else if (opts.noService) {
+      heading("Background collector");
+      line(`  ${sym.info} Skipped (--no-service). Enable later with ${pc.cyan("aster-agent service install")}.`);
+    }
   } else {
     heading("Hook installation");
     line(`  ${sym.info} Hooks are not installed by default. To collect real activity, run:`);

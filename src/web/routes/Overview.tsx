@@ -15,6 +15,7 @@ import { Link } from "react-router-dom";
 import { RISK_CATEGORIES, AGENT_LABELS } from "@core/types";
 import type { AgentRollup } from "@core/types";
 import { useAppStore } from "../app/store";
+import { useDataset } from "../data/useDataset";
 import { MetricCard } from "../components/MetricCard";
 import { Panel, SectionLabel } from "../components/ui";
 import { AgentBadge } from "../components/AgentBadge";
@@ -31,7 +32,7 @@ import {
 } from "../lib/format";
 
 export function Overview() {
-  const dataset = useAppStore((s) => s.dataset);
+  const dataset = useDataset();
   const { overview, sessions, risk, repoActivity } = dataset;
   const t = overview.totals;
 

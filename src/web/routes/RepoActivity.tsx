@@ -12,7 +12,7 @@ import {
   PieChart as PieIcon,
 } from "lucide-react";
 import { AGENT_LABELS } from "@core/types";
-import { useAppStore } from "../app/store";
+import { useDataset } from "../data/useDataset";
 import { MetricCard } from "../components/MetricCard";
 import { Panel, EmptyState } from "../components/ui";
 import { AgentDot, AgentBadge } from "../components/AgentBadge";
@@ -35,7 +35,7 @@ const SAMPLE_DIFF: DiffLine[] = [
 
 export function RepoActivity() {
   const navigate = useNavigate();
-  const dataset = useAppStore((s) => s.dataset);
+  const dataset = useDataset();
   const { repoActivity: ra, fileChanges, sessions } = dataset;
 
   const [selectedFile, setSelectedFile] = useState<string>(ra.hotFiles[0]?.filePath ?? "");

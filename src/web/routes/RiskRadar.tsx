@@ -15,7 +15,7 @@ import {
 } from "@core/types";
 import type { RiskSeverity, RiskCategory } from "@core/types";
 import type { McpServer, RiskRow } from "@core/views";
-import { useAppStore } from "../app/store";
+import { useDataset } from "../data/useDataset";
 import { Panel, EmptyState, KeyValue } from "../components/ui";
 import { RiskBadge, CategoryChip, SeverityDot, CATEGORY_ICON, CATEGORY_LABEL } from "../components/RiskBadge";
 import { AgentBadge, AgentDot } from "../components/AgentBadge";
@@ -32,7 +32,7 @@ import { computeSafety, toSafetyRadar, type Safety } from "../lib/safety";
 
 export function RiskRadar() {
   const navigate = useNavigate();
-  const dataset = useAppStore((s) => s.dataset);
+  const dataset = useDataset();
   const { risk, mcpServers, policyEvents, overview, mcpScan } = dataset;
 
   const [selectedId, setSelectedId] = useState<string>(

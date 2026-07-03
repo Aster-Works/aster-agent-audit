@@ -4,6 +4,21 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] — 2026-07-04
+
+### Changed
+
+- **Sparklines are now real.** Per-agent activity sparklines (Overview KPIs,
+  Sidebar, Agents) are derived from actual event timestamps instead of seeded
+  placeholder noise.
+- **Top-bar filters now work.** Agent / repo / date-range / search filter every
+  screen by re-aggregating the real data client-side (they were previously
+  decorative). The repo dropdown lists the repos actually present in your data,
+  and the date range defaults to the last 7 days.
+- **The background collector is installed by default** with `aster-agent init
+  --install-hooks` (macOS; opt out with `--no-service`), so continuous
+  collection is on out of the box.
+
 ## [0.1.7] — 2026-07-03
 
 ### Fixed
@@ -118,6 +133,7 @@ First public beta (Phases 1–6).
 - The local server enforces a host-header guard, a JSON-only content type, and
   a request-body size limit.
 
+[0.1.8]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.4...v0.1.5

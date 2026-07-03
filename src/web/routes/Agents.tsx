@@ -1,6 +1,7 @@
 import { CheckCircle2, FlaskConical, GitCommitHorizontal, Layers, ShieldAlert, TerminalSquare } from "lucide-react";
 import type { AgentRollup } from "@core/types";
 import { useAppStore } from "../app/store";
+import { useDataset } from "../data/useDataset";
 import { Panel } from "../components/ui";
 import { AgentBadge } from "../components/AgentBadge";
 import { SessionRow } from "../components/SessionRow";
@@ -14,7 +15,7 @@ import {
 } from "../lib/format";
 
 export function Agents() {
-  const dataset = useAppStore((s) => s.dataset);
+  const dataset = useDataset();
   const { overview, sessions } = dataset;
 
   return (

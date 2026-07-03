@@ -66,9 +66,9 @@ function ensureMac(): boolean {
   return false;
 }
 
-export function serviceInstall(): void {
-  brand();
-  heading("Install background collector");
+export function serviceInstall(opts: { skipBrand?: boolean } = {}): void {
+  if (!opts.skipBrand) brand();
+  heading("Background collector");
   if (!ensureMac()) return;
 
   mkdirSync(join(homedir(), "Library", "LaunchAgents"), { recursive: true });

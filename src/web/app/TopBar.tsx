@@ -3,7 +3,7 @@ import { ChevronDown, Search } from "lucide-react";
 import type { ReactNode } from "react";
 import { useAppStore, type AgentFilter } from "./store";
 import { PAGE_TITLES } from "./nav";
-import { DEMO_REPOS } from "../data/demo";
+import { repoOptions } from "../data/filter";
 import { AGENT_LABELS } from "@core/types";
 import { StatusDot } from "../components/ui";
 
@@ -20,6 +20,7 @@ export function TopBar() {
   const { repo, setRepo, agentFilter, setAgentFilter, dateRange, setDateRange, search, setSearch } =
     useAppStore();
   const status = useAppStore((s) => s.dataset.status);
+  const repos = repoOptions(useAppStore((s) => s.dataset));
   const source = useAppStore((s) => s.source);
   const liveState = useAppStore((s) => s.liveState);
   const setSource = useAppStore((s) => s.setSource);
@@ -50,7 +51,7 @@ export function TopBar() {
         <Select
           value={repo}
           onChange={setRepo}
-          options={[{ value: "all", label: "All repos" }, ...DEMO_REPOS.map((r) => ({ value: r, label: r }))]}
+          options={[{ value: "all", label: "All repos" }, ...repos.map((r) => ({ value: r, label: r }))]}
         />
         <Select
           value={dateRange}
