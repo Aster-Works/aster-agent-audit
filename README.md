@@ -64,15 +64,33 @@ multi-agent pass (21 corrections applied).
 ## CLI
 
 ```bash
-aster-agent dashboard            # start the collector, serve the UI, open the browser
+aster-agent dashboard            # open the dashboard (reuses a running collector, or starts one)
 aster-agent init                 # detect Claude Code / Codex (no agent files touched)
 aster-agent init --dry-run       # detect only — modifies nothing
 aster-agent init --install-hooks # install collector hooks (backs up existing config first)
 aster-agent scan [dir]           # scan local MCP config for security risks (read-only)
 aster-agent doctor               # check Node, storage, collector health, hooks, MCP posture
+aster-agent service install      # run the collector in the background (macOS launchd; starts at login)
+aster-agent service status       # show background collector status
+aster-agent service uninstall    # stop and remove the background collector
 aster-agent hooks status         # show whether hooks are installed
 aster-agent hooks uninstall      # back up, then remove only what was installed (restores prior config)
 ```
+
+### Background collection & retention
+
+By default the collector only runs while `aster-agent dashboard` is open (events
+are spooled and replayed otherwise). To collect **continuously** — even when no
+dashboard is open — install the background service:
+
+```bash
+aster-agent service install   # always-on collector (macOS); dashboard then just views it
+```
+
+It runs `aster-agent serve` (a headless collector) via launchd, starting at
+login and restarting on crash. On non-macOS, run `aster-agent serve` under your
+own supervisor (systemd, pm2, …). The console keeps **30 days** of history and
+prunes older data automatically, so the local database stays bounded.
 
 ### MCP security scan
 

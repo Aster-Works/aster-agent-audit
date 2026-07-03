@@ -4,6 +4,24 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.6] — 2026-07-03
+
+### Added
+
+- **Background collector service.** `aster-agent service install` runs the
+  collector continuously via macOS launchd (starts at login, restarts on crash),
+  so activity is collected even when no dashboard is open. `aster-agent dashboard`
+  now reuses a running collector instead of starting a second one, and a headless
+  `aster-agent serve` is available for any supervisor.
+- **30-day retention.** The collector prunes history older than 30 days on
+  startup and every 12 hours, keeping the local database bounded.
+
+### Changed
+
+- Overview KPI footnotes now come from real data (risk-severity breakdown, top
+  tools, high-churn files, PR drafts) instead of fixed demo strings, and the
+  placeholder trend percentages were removed.
+
 ## [0.1.5] — 2026-07-03
 
 ### Changed
@@ -92,6 +110,7 @@ First public beta (Phases 1–6).
 - The local server enforces a host-header guard, a JSON-only content type, and
   a request-body size limit.
 
+[0.1.6]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.2...v0.1.3

@@ -37,12 +37,31 @@ export type ServerOptions = {
   gitRunner?: GitRunner;
   /** disable git enrichment entirely (e.g. unit tests) */
   enrich?: boolean;
+  /** drop history older than this many days (default 30; 0 disables). */
+  retentionDays?: number;
 };
 
 export function createServer(opts: ServerOptions = {}) {
   const db = opts.db ?? openDb(opts.dbPath ?? DEFAULT_DB_PATH);
   const host = opts.host ?? HOST;
   const port = opts.port ?? PORT;
+
+  // Retention: enforce on startup and every 12h so the local DB stays bounded
+  // even for an always-on background collector.
+  const retentionDays = opts.retentionDays ?? 30;
+  try {
+    db.pruneOlderThan(retentionDays);
+  } catch {
+    /* non-fatal */
+  }
+  const pruneTimer = setInterval(() => {
+    try {
+      db.pruneOlderThan(retentionDays);
+    } catch {
+      /* non-fatal */
+    }
+  }, 12 * 60 * 60 * 1000);
+  pruneTimer.unref?.();
 
   const clients = new Set<(data: string) => void>();
   function broadcast(msg: LiveMessage) {
@@ -179,6 +198,7 @@ export function createServer(opts: ServerOptions = {}) {
     });
   }
   function close() {
+    clearInterval(pruneTimer);
     server?.close();
     db.close();
   }

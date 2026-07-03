@@ -461,6 +461,27 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
     });
   }
 
+  // Retention: drop history older than `days`. Runs on collector start and on a
+  // timer so the local DB doesn't grow without bound.
+  const pruneStmts = {
+    events: raw.prepare(`delete from events where timestamp < ?`),
+    risk: raw.prepare(`delete from risk_findings where timestamp < ?`),
+    files: raw.prepare(`delete from file_changes where timestamp < ?`),
+    sessions: raw.prepare(`delete from sessions where started_at < ?`),
+  };
+  const pruneTxn = raw.transaction((cutoff: string) => {
+    const e = pruneStmts.events.run(cutoff).changes;
+    pruneStmts.risk.run(cutoff);
+    pruneStmts.files.run(cutoff);
+    const s = pruneStmts.sessions.run(cutoff).changes;
+    return e + s;
+  });
+  function pruneOlderThan(days: number): number {
+    if (!Number.isFinite(days) || days <= 0) return 0;
+    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+    return pruneTxn(cutoff);
+  }
+
   function counts() {
     const c = (t: string) => (raw.prepare(`select count(*) as c from ${t}`).get() as { c: number }).c;
     return {
@@ -493,6 +514,7 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
     getRisk,
     getFileChanges,
     getGitCommits,
+    pruneOlderThan,
     counts,
     close,
   };

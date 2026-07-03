@@ -12,9 +12,37 @@ export type DashboardOptions = {
   open?: boolean;
 };
 
+async function isCollectorRunning(port: number): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 700);
+    const res = await fetch(`http://${HOST}:${port}/health`, { signal: ctrl.signal });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function dashboard(opts: DashboardOptions = {}): Promise<void> {
   const port = opts.port ?? PORT;
   const dbPath = opts.db ?? DB_PATH;
+
+  // If a background collector (service) or another dashboard is already running,
+  // reuse it — don't start a second server on the same port.
+  if (await isCollectorRunning(port)) {
+    const url = `http://${HOST}:${port}`;
+    brand();
+    line("");
+    line(`  ${sym.ok} Collector already running   ${pc.cyan(url)}`);
+    line(`  ${pc.dim("Reusing the background collector — opening the dashboard…")}`);
+    if (opts.open !== false) {
+      const { openBrowser } = await import("../util/browser");
+      openBrowser(url);
+    }
+    line("");
+    return;
+  }
 
   if (!existsSync(CONFIG_DIR)) mkdirSync(CONFIG_DIR, { recursive: true });
 

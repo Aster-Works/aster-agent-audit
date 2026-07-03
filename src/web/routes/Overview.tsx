@@ -47,18 +47,43 @@ export function Overview() {
   const claudeSpark = overview.perAgent.find((a) => a.agent === "claude-code")?.spark ?? [];
   const codexSpark = overview.perAgent.find((a) => a.agent === "codex")?.spark ?? [];
 
+  // Footnotes derived from the real dataset (no hardcoded demo values).
+  const sevCount = (s: string) => risk.filter((r) => r.severity === s).length;
+  const riskFootnote =
+    risk.length === 0
+      ? "none detected"
+      : (["critical", "high", "medium", "low"] as const)
+          .map((s) => [s, sevCount(s)] as const)
+          .filter(([, n]) => n > 0)
+          .slice(0, 2)
+          .map(([s, n]) => `${n} ${s}`)
+          .join(" · ");
+  const toolCounts = new Map<string, number>();
+  for (const evs of Object.values(dataset.eventsBySession))
+    for (const e of evs) if (e.toolName) toolCounts.set(e.toolName, (toolCounts.get(e.toolName) ?? 0) + 1);
+  const topTools = [...toolCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n);
+  const toolsFootnote = topTools.length ? topTools.join(" · ") : "no tools yet";
+  const hotCount = repoActivity.hotFiles.filter((f) => f.churn >= 50).length;
+  const filesFootnote =
+    t.filesChanged === 0
+      ? "no edits yet"
+      : hotCount > 0
+      ? `${hotCount} high-churn`
+      : `${formatNumber(repoActivity.churn)} lines churned`;
+  const prFootnote = `${repoActivity.prDrafts} PR draft${repoActivity.prDrafts === 1 ? "" : "s"}`;
+
   return (
     <div className="space-y-4 p-4">
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
-        <MetricCard label="Sessions" value={t.sessions} icon={Layers} delta={12} spark={claudeSpark} sparkColor="var(--color-claude)" />
-        <MetricCard label="Tokens" value={formatTokens(t.tokens)} icon={Boxes} delta={8} spark={codexSpark} sparkColor="var(--color-codex)" />
-        <MetricCard label="Cost" value={formatUsd(t.costUsd)} icon={CircleDollarSign} delta={-4} accent="var(--color-ink)" footnote="estimated · all repos" />
-        <MetricCard label="Files Changed" value={t.filesChanged} icon={FileCode2} delta={15} footnote="9 high-churn" />
-        <MetricCard label="Tool Calls" value={formatNumber(t.toolCalls)} icon={TerminalSquare} delta={6} footnote="Bash · Edit · Read" />
-        <MetricCard label="Risk Findings" value={t.riskFindings} icon={ShieldAlert} accent="var(--color-warn)" footnote="1 critical · 2 high" />
+        <MetricCard label="Sessions" value={t.sessions} icon={Layers} spark={claudeSpark} sparkColor="var(--color-claude)" />
+        <MetricCard label="Tokens" value={formatTokens(t.tokens)} icon={Boxes} spark={codexSpark} sparkColor="var(--color-codex)" />
+        <MetricCard label="Cost" value={formatUsd(t.costUsd)} icon={CircleDollarSign} accent="var(--color-ink)" footnote="estimated · all repos" />
+        <MetricCard label="Files Changed" value={t.filesChanged} icon={FileCode2} footnote={filesFootnote} />
+        <MetricCard label="Tool Calls" value={formatNumber(t.toolCalls)} icon={TerminalSquare} footnote={toolsFootnote} />
+        <MetricCard label="Risk Findings" value={t.riskFindings} icon={ShieldAlert} accent={t.riskFindings === 0 ? "var(--color-safe)" : "var(--color-warn)"} footnote={riskFootnote} />
         <MetricCard label="Tests Passing" value={`${t.testsPassing}`} icon={FlaskConical} accent="var(--color-safe)" footnote={`${t.testsFailing} failing`} />
-        <MetricCard label="Commits" value={t.commits} icon={GitCommitHorizontal} delta={20} footnote="3 PR drafts" />
+        <MetricCard label="Commits" value={t.commits} icon={GitCommitHorizontal} footnote={prFootnote} />
       </div>
 
       {/* Main grid */}

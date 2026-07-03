@@ -13,6 +13,8 @@ import { dashboard } from "./commands/dashboard";
 import { doctor } from "./commands/doctor";
 import { init } from "./commands/init";
 import { scanCmd } from "./commands/scan";
+import { serve } from "./commands/serve";
+import { serviceInstall, serviceStatus, serviceUninstall } from "./commands/service";
 import { hooksStatusCmd, hooksUninstallCmd, installHooksCmd } from "./commands/hooks";
 
 const program = new Command();
@@ -52,6 +54,29 @@ program
   .description("Scan local MCP configuration for security risks (read-only, never executes)")
   .argument("[dir]", "project directory to scan (defaults to the current directory)")
   .action((dir) => scanCmd(dir));
+
+program
+  .command("serve")
+  .description("Run the collector headlessly (no browser) — what the background service runs")
+  .option("-p, --port <number>", "port to bind on 127.0.0.1", port)
+  .option("--db <path>", "path to the SQLite database")
+  .action((opts) => serve({ port: opts.port, db: opts.db }));
+
+const service = program
+  .command("service")
+  .description("Manage the always-on background collector (collects while no dashboard is open)");
+service
+  .command("install")
+  .description("Install and start the background collector (macOS launchd; runs at login)")
+  .action(() => serviceInstall());
+service
+  .command("uninstall")
+  .description("Stop and remove the background collector")
+  .action(() => serviceUninstall());
+service
+  .command("status")
+  .description("Show background collector status")
+  .action(() => serviceStatus());
 
 const hooks = program.command("hooks").description("Manage Claude Code / Codex collector hooks");
 hooks

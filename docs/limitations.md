@@ -72,7 +72,7 @@ Line counts for uncommitted (working-tree) edits are **0 until git enrichment at
 This is a single-user, local MVP:
 
 - The server binds `127.0.0.1:48321` **only**, with a host-header guard against DNS rebinding, accepts JSON, caps bodies at 512KB, and **never executes incoming commands** (`src/server/index.ts`).
-- All data stays in `~/.aster-agent-console/` (SQLite via `better-sqlite3`, WAL mode).
+- All data stays in `~/.aster-agent-console/` (SQLite via `better-sqlite3`, WAL mode). History is retained for **30 days** and older rows are pruned automatically, so the local database stays bounded (and old activity is not kept forever).
 - There is **no cloud sync, no shared/team dashboard, no authentication, and no billing.** Each machine is its own island.
 
 ## Policy filters the view, not the record
