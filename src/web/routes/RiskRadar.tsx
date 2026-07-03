@@ -126,8 +126,9 @@ export function RiskRadar() {
               : `${active.length} findings · ${counts.get("critical")} critical`
           }
           noBodyPadding
+          className="self-start"
         >
-          <div className="max-h-[440px] overflow-y-auto">
+          <div className="max-h-[544px] overflow-y-auto">
             {sorted.map((r) => (
               <FindingRow
                 key={r.id}
@@ -304,20 +305,64 @@ function FindingRow({
   );
 }
 
-// Where to rotate an exposed credential, matched from the redacted evidence
-// prefix (mask() keeps sk-ant-/ghp_/AKIA… ) or the kind named in the description.
-const ROTATE_TARGETS: { test: RegExp; provider: string; url?: string }[] = [
+type Rotation = { provider: string; url?: string; hint?: string };
+
+// Known MCP servers → where to rotate their key (matched from the server name
+// the finding records, e.g. `server "magic"`).
+const MCP_PROVIDERS: Record<string, { provider: string; url: string }> = {
+  magic: { provider: "21st.dev (Magic)", url: "https://21st.dev/magic/console" },
+  higgsfield: { provider: "Higgsfield", url: "https://higgsfield.ai/account" },
+  stripe: { provider: "Stripe", url: "https://dashboard.stripe.com/apikeys" },
+};
+
+// Recognizable credential prefixes / providers. mask() preserves prefixes like
+// sk-ant-/ghp_/AKIA, so the redacted evidence still identifies the provider.
+const TOKEN_TARGETS: { test: RegExp; provider: string; url: string }[] = [
   { test: /sk-ant-|anthropic/i, provider: "Anthropic", url: "https://console.anthropic.com/settings/keys" },
   { test: /gh[pousr]_|github_pat_|github/i, provider: "GitHub", url: "https://github.com/settings/tokens" },
   { test: /sb[ps]_|sbsecret_|supabase/i, provider: "Supabase", url: "https://supabase.com/dashboard/project/_/settings/api" },
+  { test: /AKIA[0-9A-Z]{16}|\baws\b/i, provider: "AWS", url: "https://console.aws.amazon.com/iam/home#/security_credentials" },
+  { test: /\bAIza[0-9A-Za-z_-]/, provider: "Google Cloud", url: "https://console.cloud.google.com/apis/credentials" },
+  { test: /\b[srp]k_(?:live|test)_/, provider: "Stripe", url: "https://dashboard.stripe.com/apikeys" },
+  { test: /\bxox[baprs]-/, provider: "Slack", url: "https://api.slack.com/apps" },
   { test: /\bsk-/, provider: "OpenAI", url: "https://platform.openai.com/api-keys" },
-  { test: /AKIA[0-9A-Z]{16}|aws/i, provider: "AWS", url: "https://console.aws.amazon.com/iam/home#/security_credentials" },
-  { test: /postgres|mysql|mongodb|url_credential/i, provider: "your database / service" },
 ];
-function rotationTarget(row: RiskRow): { provider: string; url?: string } {
-  const hay = `${row.redactedEvidence ?? ""} ${row.description}`;
-  for (const t of ROTATE_TARGETS) if (t.test.test(hay)) return { provider: t.provider, url: t.url };
-  return { provider: "the issuing provider" };
+
+/** Where to rotate the exposed credential behind a secret finding. */
+function rotationTarget(row: RiskRow): Rotation {
+  const ev = row.redactedEvidence ?? "";
+  const hay = `${ev} ${row.description}`;
+
+  // 1. Known credential prefix / provider.
+  for (const t of TOKEN_TARGETS) if (t.test.test(hay)) return { provider: t.provider, url: t.url };
+
+  // 2. Database connection string → identify the host (only the password is masked).
+  if (/:\/\/|\bpostgres|\bmysql|\bmongodb|\bredis|url_credential/i.test(hay)) {
+    const host = (ev.match(/@([A-Za-z0-9_.-]+)/) || [])[1] ?? "";
+    if (/supabase/i.test(host)) return { provider: "Supabase", url: "https://supabase.com/dashboard/project/_/settings/database" };
+    if (/neon\.tech/i.test(host)) return { provider: "Neon", url: "https://console.neon.tech" };
+    if (/rds\.amazonaws/i.test(host)) return { provider: "AWS RDS", url: "https://console.aws.amazon.com/rds" };
+    if (!host || /^(127\.|0\.0\.0\.0|localhost|::1|192\.168\.|10\.)/i.test(host))
+      return {
+        provider: "your local database",
+        hint: "Local database — change the role's password (e.g. `ALTER USER … WITH PASSWORD …`) and update the connection string. There's no web page to rotate a local credential.",
+      };
+    return { provider: host, hint: `Rotate the database password on ${host}, then update the connection string.` };
+  }
+
+  // 3. MCP server env secret → map the named server to its provider.
+  const server = (row.description.match(/server ["']([^"']+)["']/) || [])[1];
+  if (server) {
+    const known = MCP_PROVIDERS[server.toLowerCase()];
+    if (known) return known;
+    return {
+      provider: `the "${server}" provider`,
+      hint: `Rotate this key in the ${server} provider's dashboard, then reference it as \${VAR} in your MCP config instead of inlining it.`,
+    };
+  }
+
+  // 4. Generic fallback.
+  return { provider: "the issuing provider", hint: "Rotate this credential where it was issued, then update it wherever it's configured." };
 }
 
 function FindingDetails({
@@ -386,7 +431,7 @@ function FindingDetails({
             {isMcp ? " and in the MCP config it came from" : " and wherever it came from (e.g. a .env)"} — so it’s
             already exposed. Deleting a record wouldn’t undo that; <span className="text-ink">rotate the key</span> to neutralize it.
           </p>
-          {rotate.url ? (
+          {rotate.url && (
             <a
               href={rotate.url}
               target="_blank"
@@ -395,11 +440,8 @@ function FindingDetails({
             >
               <KeyRound size={13} /> Rotate at {rotate.provider} <ExternalLink size={12} />
             </a>
-          ) : (
-            <p className="mt-1.5 text-[11px] text-ink-3">
-              Rotate at {rotate.provider} and update the value where it’s configured.
-            </p>
           )}
+          {rotate.hint && <p className="mt-1.5 text-[11px] leading-snug text-ink-3">{rotate.hint}</p>}
         </div>
       )}
 
