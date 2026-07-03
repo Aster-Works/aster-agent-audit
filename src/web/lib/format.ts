@@ -35,15 +35,18 @@ export function formatDuration(ms?: number): string {
   return `${m}m ${rem}s`;
 }
 
-/** "10:24:17" from an ISO timestamp, reading the wall-clock portion. */
+/** "10:24:17" in the viewer's local timezone (auto-detected from the browser). */
 export function formatClock(iso: string): string {
-  const m = iso.match(/T(\d{2}:\d{2}:\d{2})/);
-  return m ? m[1] : iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+/** "10:24" in the viewer's local timezone (auto-detected from the browser). */
 export function formatTime(iso: string): string {
-  const m = iso.match(/T(\d{2}:\d{2})/);
-  return m ? m[1] : iso;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 /** Minutes between two ISO timestamps (best effort). */

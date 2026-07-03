@@ -56,8 +56,10 @@ function repoName(p?: string): string {
 }
 
 function hourBucket(iso: string): number {
-  const m = iso.match(/T(\d{2}):/);
-  return m ? Number(m[1]) : new Date(iso).getHours();
+  // Local wall-clock hour: server-side (live) uses the machine timezone, which
+  // for this local-first tool is the user's own timezone.
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? 0 : d.getHours();
 }
 
 function countToolCalls(

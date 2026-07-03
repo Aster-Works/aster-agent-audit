@@ -28,6 +28,7 @@ import {
   SEVERITY_COLOR_VAR,
   SEVERITY_LABEL,
 } from "../lib/format";
+import { computeSafety, toSafetyRadar, type Safety } from "../lib/safety";
 
 export function RiskRadar() {
   const navigate = useNavigate();
@@ -51,7 +52,7 @@ export function RiskRadar() {
   // Safety surface: invert risk so a fully safe setup reads as a big, full
   // green hexagon. Categories with findings dip inward.
   const safety = computeSafety(risk);
-  const safetyRadar = radar.map((r) => ({ ...r, score: Math.max(0, 100 - r.score) }));
+  const safetyRadar = toSafetyRadar(radar);
 
   const sorted = [...risk].sort(
     (a, b) => SEVERITY_ORDER.indexOf(b.severity) - SEVERITY_ORDER.indexOf(a.severity)
@@ -285,28 +286,6 @@ function FindingDetails({ row }: { row: RiskRow }) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-3">{children}</div>;
-}
-
-const SAFETY_PENALTY: Record<RiskSeverity, number> = {
-  info: 0,
-  low: 2,
-  medium: 7,
-  high: 15,
-  critical: 25,
-};
-
-type Safety = { score: number; grade: string; color: string; label: string; safe: boolean };
-
-/** Overall safety = 100 minus severity-weighted penalties. High score → green. */
-function computeSafety(rows: RiskRow[]): Safety {
-  const penalty = rows.reduce((a, r) => a + SAFETY_PENALTY[r.severity], 0);
-  const score = Math.max(0, 100 - penalty);
-  const grade = score >= 90 ? "A" : score >= 75 ? "B" : score >= 60 ? "C" : score >= 40 ? "D" : "F";
-  const color =
-    score >= 80 ? "var(--color-safe)" : score >= 55 ? "var(--color-warn)" : "var(--color-danger)";
-  const urgent = rows.filter((r) => r.severity === "critical" || r.severity === "high").length;
-  const label = rows.length === 0 ? "All clear" : urgent > 0 ? `${urgent} to address` : "Minor only";
-  return { score, grade, color, label, safe: score >= 80 };
 }
 
 function SafetyHeadline({ safety, findings }: { safety: Safety; findings: number }) {

@@ -6,6 +6,7 @@ import {
   GitCommitHorizontal,
   Layers,
   ShieldAlert,
+  ShieldCheck,
   TerminalSquare,
   FlaskConical,
   ChevronRight,
@@ -20,6 +21,7 @@ import { AgentBadge } from "../components/AgentBadge";
 import { SessionRow } from "../components/SessionRow";
 import { HeatmapGrid, HeatmapLegend } from "../components/HeatmapGrid";
 import { ActivityArea, Donut, RiskRadarChart, radarScores } from "../components/charts";
+import { computeSafety, toSafetyRadar } from "../lib/safety";
 import {
   AGENT_COLOR_VAR,
   formatNumber,
@@ -34,6 +36,8 @@ export function Overview() {
   const t = overview.totals;
 
   const radar = radarScores(risk, RISK_CATEGORIES);
+  const safety = computeSafety(risk);
+  const safetyRadar = toSafetyRadar(radar);
   const costData = overview.perAgent.map((a) => ({
     name: AGENT_LABELS[a.agent],
     value: a.costUsd,
@@ -69,17 +73,26 @@ export function Overview() {
         {/* Right column */}
         <div className="flex flex-col gap-4">
           <Panel
-            title="Risk Radar"
-            icon={ShieldAlert}
-            iconColor="var(--color-warn)"
-            subtitle={`${t.riskFindings} findings across ${RISK_CATEGORIES.length} categories`}
+            title="Safety Surface"
+            icon={safety.safe ? ShieldCheck : ShieldAlert}
+            iconColor={safety.color}
+            subtitle={
+              risk.length === 0
+                ? "All clear — no risks detected"
+                : `${safety.score}/100 · grade ${safety.grade} · ${t.riskFindings} findings`
+            }
             action={
               <Link to="/risk-radar" className="text-[11px] text-ink-3 hover:text-ink-2">
                 View all
               </Link>
             }
           >
-            <RiskRadarChart data={radar} height={210} />
+            <RiskRadarChart
+              data={safetyRadar}
+              height={210}
+              color={safety.color}
+              fillOpacity={safety.safe ? 0.34 : 0.2}
+            />
           </Panel>
 
           <Panel title="Cost" icon={CircleDollarSign} subtitle="Estimated spend by agent">

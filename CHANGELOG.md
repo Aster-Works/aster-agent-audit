@@ -4,6 +4,20 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] — 2026-07-03
+
+### Changed
+
+- The Overview's radar panel is now the same **Safety Surface** as the Risk Radar
+  page — a full green shape when safe, dipping inward where findings are, with an
+  inline safety score and grade. (Safety scoring is now shared in `lib/safety.ts`.)
+
+### Fixed
+
+- **Times now display in your local timezone** (auto-detected). Event clocks and
+  the Live Activity chart previously showed the raw ISO wall-clock, so live events
+  (stored in UTC) appeared in UTC instead of, e.g., JST.
+
 ## [0.1.4] — 2026-07-03
 
 ### Added
@@ -78,6 +92,7 @@ First public beta (Phases 1–6).
 - The local server enforces a host-header guard, a JSON-only content type, and
   a request-body size limit.
 
+[0.1.5]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.1...v0.1.2
