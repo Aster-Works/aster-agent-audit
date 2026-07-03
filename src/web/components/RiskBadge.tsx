@@ -11,6 +11,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { SEVERITY_COLOR_VAR, SEVERITY_LABEL } from "../lib/format";
 import { cn } from "../lib/cn";
+import { useT } from "../lib/i18n";
 
 export const CATEGORY_ICON: Record<RiskCategory, LucideIcon> = {
   secrets: KeyRound,
@@ -48,6 +49,7 @@ export function RiskBadge({
   severity: RiskSeverity;
   className?: string;
 }) {
+  const t = useT();
   const color = SEVERITY_COLOR_VAR[severity];
   return (
     <span
@@ -62,17 +64,18 @@ export function RiskBadge({
       }}
     >
       <SeverityDot severity={severity} size={6} />
-      {SEVERITY_LABEL[severity]}
+      {t(SEVERITY_LABEL[severity])}
     </span>
   );
 }
 
 export function CategoryChip({ category }: { category: RiskCategory }) {
+  const t = useT();
   const Icon = CATEGORY_ICON[category];
   return (
     <span className="inline-flex items-center gap-1 rounded-md border border-line bg-surface-2 px-1.5 py-0.5 text-[11px] text-ink-2">
       <Icon size={12} className="text-ink-3" />
-      {CATEGORY_LABEL[category]}
+      {t(CATEGORY_LABEL[category])}
     </span>
   );
 }

@@ -6,6 +6,8 @@ import { PAGE_TITLES } from "./nav";
 import { repoOptions } from "../data/filter";
 import { AGENT_LABELS } from "@core/types";
 import { StatusDot } from "../components/ui";
+import { useT } from "../lib/i18n";
+import { cn } from "../lib/cn";
 
 function currentKey(pathname: string): string {
   const seg = pathname.split("/").filter(Boolean)[0] ?? "overview";
@@ -14,6 +16,7 @@ function currentKey(pathname: string): string {
 
 export function TopBar() {
   const location = useLocation();
+  const t = useT();
   const key = currentKey(location.pathname);
   const page = PAGE_TITLES[key] ?? PAGE_TITLES.overview;
 
@@ -29,9 +32,9 @@ export function TopBar() {
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-line bg-surface px-4">
       <div className="min-w-0">
         <h1 className="aac-truncate text-[15px] font-semibold tracking-tight text-ink">
-          {page.title}
+          {t(page.title)}
         </h1>
-        <p className="aac-truncate text-[11px] text-ink-3">{page.subtitle}</p>
+        <p className="aac-truncate text-[11px] text-ink-3">{t(page.subtitle)}</p>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
@@ -43,7 +46,7 @@ export function TopBar() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search sessions, files, commands…"
+            placeholder={t("Search sessions, files, commands…")}
             className="h-8 w-56 rounded-md border border-line bg-bg pl-7 pr-2 text-[12px] text-ink placeholder:text-ink-3 focus:border-line focus:outline-none focus:ring-1 focus:ring-claude/40"
           />
         </div>
@@ -51,34 +54,36 @@ export function TopBar() {
         <Select
           value={repo}
           onChange={setRepo}
-          options={[{ value: "all", label: "All repos" }, ...repos.map((r) => ({ value: r, label: r }))]}
+          options={[{ value: "all", label: t("All repos") }, ...repos.map((r) => ({ value: r, label: r }))]}
         />
         <Select
           value={dateRange}
           onChange={setDateRange}
           options={[
-            { value: "today", label: "Today" },
-            { value: "7d", label: "Last 7 days" },
-            { value: "30d", label: "Last 30 days" },
+            { value: "today", label: t("Today") },
+            { value: "7d", label: t("Last 7 days") },
+            { value: "30d", label: t("Last 30 days") },
           ]}
         />
         <Select
           value={agentFilter}
           onChange={(v) => setAgentFilter(v as AgentFilter)}
           options={[
-            { value: "all", label: "All agents" },
+            { value: "all", label: t("All agents") },
             { value: "claude-code", label: AGENT_LABELS["claude-code"] },
             { value: "codex", label: AGENT_LABELS.codex },
           ]}
         />
+
+        <LanguageToggle />
 
         <button
           type="button"
           onClick={() => setSource(source === "live" ? "demo" : "live")}
           title={
             source === "live"
-              ? "Connected to local collector — click for demo data"
-              : "Showing demo data — click to connect to the local collector"
+              ? t("Connected to local collector — click for demo data")
+              : t("Showing demo data — click to connect to the local collector")
           }
           className="ml-1 flex items-center gap-1.5 rounded-md border border-line bg-bg px-2 py-1.5 text-[11px] transition-colors hover:border-ink-3"
         >
@@ -96,17 +101,44 @@ export function TopBar() {
           />
           <span className="text-ink-2">
             {liveState === "loading"
-              ? "Connecting…"
+              ? t("Connecting…")
               : source === "live" && liveState === "ready"
-              ? "Live"
+              ? t("Live")
               : source === "live" && liveState === "empty"
-              ? "Live (no data)"
-              : "Demo"}
+              ? t("Live (no data)")
+              : t("Demo")}
           </span>
           <span className="hidden font-mono text-ink-3 xl:inline">127.0.0.1:{status.port}</span>
         </button>
       </div>
     </header>
+  );
+}
+
+/** Compact EN / 日本語 language switch. */
+function LanguageToggle() {
+  const locale = useAppStore((s) => s.locale);
+  const setLocale = useAppStore((s) => s.setLocale);
+  const t = useT();
+  return (
+    <div
+      className="flex items-center overflow-hidden rounded-md border border-line text-[11px]"
+      title={t("Language")}
+    >
+      {(["en", "ja"] as const).map((l) => (
+        <button
+          key={l}
+          type="button"
+          onClick={() => setLocale(l)}
+          className={cn(
+            "px-2 py-1.5 transition-colors",
+            locale === l ? "bg-claude/15 font-medium text-claude" : "text-ink-3 hover:text-ink-2"
+          )}
+        >
+          {l === "en" ? "EN" : "日本語"}
+        </button>
+      ))}
+    </div>
   );
 }
 

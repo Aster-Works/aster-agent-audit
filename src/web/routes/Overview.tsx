@@ -23,6 +23,7 @@ import { SessionRow } from "../components/SessionRow";
 import { HeatmapGrid, HeatmapLegend } from "../components/HeatmapGrid";
 import { ActivityArea, Donut, RiskRadarChart, radarScores } from "../components/charts";
 import { computeSafety, toSafetyRadar } from "../lib/safety";
+import { useT } from "../lib/i18n";
 import {
   AGENT_COLOR_VAR,
   formatNumber,
@@ -33,6 +34,7 @@ import {
 
 export function Overview() {
   const dataset = useDataset();
+  const tr = useT();
   const { overview, sessions, risk, repoActivity } = dataset;
   const t = overview.totals;
 
@@ -52,39 +54,39 @@ export function Overview() {
   const sevCount = (s: string) => risk.filter((r) => r.severity === s).length;
   const riskFootnote =
     risk.length === 0
-      ? "none detected"
+      ? tr("none detected")
       : (["critical", "high", "medium", "low"] as const)
           .map((s) => [s, sevCount(s)] as const)
           .filter(([, n]) => n > 0)
           .slice(0, 2)
-          .map(([s, n]) => `${n} ${s}`)
+          .map(([s, n]) => tr("{n} {s}", { n, s: tr(s) }))
           .join(" · ");
   const toolCounts = new Map<string, number>();
   for (const evs of Object.values(dataset.eventsBySession))
     for (const e of evs) if (e.toolName) toolCounts.set(e.toolName, (toolCounts.get(e.toolName) ?? 0) + 1);
   const topTools = [...toolCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n]) => n);
-  const toolsFootnote = topTools.length ? topTools.join(" · ") : "no tools yet";
+  const toolsFootnote = topTools.length ? topTools.join(" · ") : tr("no tools yet");
   const hotCount = repoActivity.hotFiles.filter((f) => f.churn >= 50).length;
   const filesFootnote =
     t.filesChanged === 0
-      ? "no edits yet"
+      ? tr("no edits yet")
       : hotCount > 0
-      ? `${hotCount} high-churn`
-      : `${formatNumber(repoActivity.churn)} lines churned`;
-  const prFootnote = `${repoActivity.prDrafts} PR draft${repoActivity.prDrafts === 1 ? "" : "s"}`;
+      ? tr("{n} high-churn", { n: hotCount })
+      : tr("{n} lines churned", { n: formatNumber(repoActivity.churn) });
+  const prFootnote = tr("{n} PR drafts", { n: repoActivity.prDrafts });
 
   return (
     <div className="space-y-4 p-4">
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
-        <MetricCard label="Sessions" value={t.sessions} icon={Layers} spark={claudeSpark} sparkColor="var(--color-claude)" />
-        <MetricCard label="Tokens" value={formatTokens(t.tokens)} icon={Boxes} spark={codexSpark} sparkColor="var(--color-codex)" />
-        <MetricCard label="Cost" value={formatUsd(t.costUsd)} icon={CircleDollarSign} accent="var(--color-ink)" footnote="estimated · all repos" />
-        <MetricCard label="Files Changed" value={t.filesChanged} icon={FileCode2} footnote={filesFootnote} />
-        <MetricCard label="Tool Calls" value={formatNumber(t.toolCalls)} icon={TerminalSquare} footnote={toolsFootnote} />
-        <MetricCard label="Risk Findings" value={t.riskFindings} icon={ShieldAlert} accent={t.riskFindings === 0 ? "var(--color-safe)" : "var(--color-warn)"} footnote={riskFootnote} />
-        <MetricCard label="Tests Passing" value={`${t.testsPassing}`} icon={FlaskConical} accent="var(--color-safe)" footnote={`${t.testsFailing} failing`} />
-        <MetricCard label="Commits" value={t.commits} icon={GitCommitHorizontal} footnote={prFootnote} />
+        <MetricCard label={tr("Sessions")} value={t.sessions} icon={Layers} spark={claudeSpark} sparkColor="var(--color-claude)" />
+        <MetricCard label={tr("Tokens")} value={formatTokens(t.tokens)} icon={Boxes} spark={codexSpark} sparkColor="var(--color-codex)" />
+        <MetricCard label={tr("Cost")} value={formatUsd(t.costUsd)} icon={CircleDollarSign} accent="var(--color-ink)" footnote={tr("estimated · all repos")} />
+        <MetricCard label={tr("Files Changed")} value={t.filesChanged} icon={FileCode2} footnote={filesFootnote} />
+        <MetricCard label={tr("Tool Calls")} value={formatNumber(t.toolCalls)} icon={TerminalSquare} footnote={toolsFootnote} />
+        <MetricCard label={tr("Risk Findings")} value={t.riskFindings} icon={ShieldAlert} accent={t.riskFindings === 0 ? "var(--color-safe)" : "var(--color-warn)"} footnote={riskFootnote} />
+        <MetricCard label={tr("Tests Passing")} value={`${t.testsPassing}`} icon={FlaskConical} accent="var(--color-safe)" footnote={tr("{n} failing", { n: t.testsFailing })} />
+        <MetricCard label={tr("Commits")} value={t.commits} icon={GitCommitHorizontal} footnote={prFootnote} />
       </div>
 
       {/* Main grid */}
@@ -99,17 +101,21 @@ export function Overview() {
         {/* Right column */}
         <div className="flex flex-col gap-4">
           <Panel
-            title="Safety Surface"
+            title={tr("Safety Surface")}
             icon={safety.safe ? ShieldCheck : ShieldAlert}
             iconColor={safety.color}
             subtitle={
               risk.length === 0
-                ? "All clear — no risks detected"
-                : `${safety.score}/100 · grade ${safety.grade} · ${t.riskFindings} findings`
+                ? tr("All clear — no risks detected")
+                : tr("{score}/100 · grade {grade} · {n} findings", {
+                    score: safety.score,
+                    grade: safety.grade,
+                    n: t.riskFindings,
+                  })
             }
             action={
               <Link to="/risk-radar" className="text-[11px] text-ink-3 hover:text-ink-2">
-                View all
+                {tr("View all")}
               </Link>
             }
           >
@@ -121,9 +127,9 @@ export function Overview() {
             />
           </Panel>
 
-          <Panel title="Cost" icon={CircleDollarSign} subtitle="Estimated spend by agent">
+          <Panel title={tr("Cost")} icon={CircleDollarSign} subtitle={tr("Estimated spend by agent")}>
             <div className="grid grid-cols-2 items-center gap-2">
-              <Donut data={costData} height={150} centerLabel={formatUsd(t.costUsd)} centerSub="today" />
+              <Donut data={costData} height={150} centerLabel={formatUsd(t.costUsd)} centerSub={tr("today")} />
               <div className="space-y-2">
                 {overview.perAgent.map((a) => (
                   <div key={a.agent} className="flex items-center justify-between text-[12px]">
@@ -154,9 +160,9 @@ export function Overview() {
       {/* Bottom: activity + repo heatmap */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel
-          title="Live Activity"
+          title={tr("Live Activity")}
           icon={Activity}
-          subtitle="Sessions started per hour"
+          subtitle={tr("Sessions started per hour")}
           className="xl:col-span-2"
           action={
             <div className="flex items-center gap-3 text-[11px]">
@@ -169,15 +175,15 @@ export function Overview() {
         </Panel>
 
         <Panel
-          title="Repo Activity"
+          title={tr("Repo Activity")}
           icon={Boxes}
-          subtitle={`${repoActivity.repo} · ${repoActivity.churn} churn`}
+          subtitle={tr("{repo} · {n} churn", { repo: repoActivity.repo, n: repoActivity.churn })}
           action={
             <Link
               to="/repo-activity"
               className="flex items-center gap-0.5 text-[11px] text-ink-3 hover:text-ink-2"
             >
-              Details <ChevronRight size={12} />
+              {tr("Details")} <ChevronRight size={12} />
             </Link>
           }
         >
@@ -186,7 +192,7 @@ export function Overview() {
             <div className="flex items-center justify-between">
               <HeatmapLegend />
               <span className="text-[11px] text-ink-3">
-                {repoActivity.commits} commits · {repoActivity.prDrafts} PR drafts
+                {tr("{c} commits · {p} PR drafts", { c: repoActivity.commits, p: repoActivity.prDrafts })}
               </span>
             </div>
           </div>
@@ -203,6 +209,7 @@ function AgentPanel({
   rollup: AgentRollup;
   sessions: ReturnType<typeof useAppStore.getState>["dataset"]["sessions"];
 }) {
+  const t = useT();
   const color = AGENT_COLOR_VAR[rollup.agent];
   const own = sessions.filter((s) => s.agent === rollup.agent).slice(0, 4);
   return (
@@ -210,19 +217,19 @@ function AgentPanel({
       title={<AgentBadge agent={rollup.agent} size="md" />}
       action={
         <span className="text-[11px] text-ink-3">
-          success <span className="font-medium text-ink-2">{formatPct(rollup.successRate)}</span>
+          {t("success")} <span className="font-medium text-ink-2">{formatPct(rollup.successRate)}</span>
         </span>
       }
       bodyClassName="p-3"
     >
       <div className="grid grid-cols-4 gap-2">
-        <Stat label="Sessions" value={String(rollup.sessions)} color={color} />
-        <Stat label="Tokens" value={formatTokens(rollup.tokens)} color={color} />
-        <Stat label="Cost" value={formatUsd(rollup.costUsd)} color={color} />
-        <Stat label="Tools" value={String(rollup.toolCalls)} color={color} />
+        <Stat label={t("Sessions")} value={String(rollup.sessions)} color={color} />
+        <Stat label={t("Tokens")} value={formatTokens(rollup.tokens)} color={color} />
+        <Stat label={t("Cost")} value={formatUsd(rollup.costUsd)} color={color} />
+        <Stat label={t("Tools")} value={String(rollup.toolCalls)} color={color} />
       </div>
       <div className="mt-3">
-        <SectionLabel>Recent sessions</SectionLabel>
+        <SectionLabel>{t("Recent sessions")}</SectionLabel>
         <div className="mt-1.5 overflow-hidden rounded-md border border-line">
           {own.map((s) => (
             <SessionRow key={s.id} session={s} compact />

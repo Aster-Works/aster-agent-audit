@@ -7,10 +7,12 @@ import { AGENT_LABELS } from "@core/types";
 import { AGENT_COLOR_VAR, formatUsd, formatTokens } from "../lib/format";
 import { Sparkline } from "../components/Sparkline";
 import { StatusDot } from "../components/ui";
+import { useT } from "../lib/i18n";
 
 export function Sidebar() {
   const dataset = useAppStore((s) => s.dataset);
   const status = dataset.status;
+  const t = useT();
 
   return (
     <aside className="flex h-full w-[240px] shrink-0 flex-col border-r border-line bg-surface">
@@ -57,7 +59,7 @@ export function Sidebar() {
                       strokeWidth={2}
                       className={cn(isActive ? "text-claude" : "text-ink-3 group-hover:text-ink-2")}
                     />
-                    {item.label}
+                    {t(item.label)}
                   </>
                 )}
               </NavLink>
@@ -74,10 +76,10 @@ export function Sidebar() {
               color={status.online ? "var(--color-safe)" : "var(--color-warn)"}
               pulse={status.online}
             />
-            Collector
+            {t("Collector")}
           </div>
           <span className="text-[10px] uppercase tracking-wide text-ink-3">
-            {status.mode === "demo" ? "Demo data" : status.online ? "Online" : "Offline"}
+            {status.mode === "demo" ? t("Demo data") : status.online ? t("Online") : t("Offline")}
           </span>
         </div>
         <div className="space-y-1.5">
@@ -100,7 +102,7 @@ export function Sidebar() {
         </div>
         <div className="mt-2.5 flex items-center gap-1.5 text-[10px] leading-tight text-ink-3">
           <ShieldCheck size={12} className="shrink-0 text-safe" />
-          No account. No cloud. History stays on your machine.
+          {t("No account. No cloud. History stays on your machine.")}
         </div>
       </div>
     </aside>

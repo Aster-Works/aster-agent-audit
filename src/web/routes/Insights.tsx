@@ -16,6 +16,7 @@ import { buildInsights, type Insights as InsightsData } from "../lib/insights";
 import { Panel, EmptyState } from "../components/ui";
 import { Donut } from "../components/charts";
 import { AGENT_COLOR_VAR, formatNumber, formatPct, formatTokens, formatUsd } from "../lib/format";
+import { useT } from "../lib/i18n";
 
 /** Human-readable duration: 120ms · 1.8s · 2m 05s. */
 function formatDuration(ms: number | null): string {
@@ -35,6 +36,7 @@ const TOKEN_COLORS = {
 } as const;
 
 export function Insights() {
+  const t = useT();
   const dataset = useDataset();
   const ins = buildInsights(dataset);
 
@@ -43,26 +45,26 @@ export function Insights() {
       {/* Row 1: token composition + cache hit rate */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel
-          title="Token Composition"
+          title={t("Token Composition")}
           icon={Boxes}
-          subtitle="Where your tokens actually go"
+          subtitle={t("Where your tokens actually go")}
           className="xl:col-span-2"
         >
           <TokenComposition ins={ins} />
         </Panel>
-        <Panel title="Cache Hit Rate" icon={Recycle} iconColor="var(--color-safe)" subtitle="Cheap cache reads vs fresh input">
+        <Panel title={t("Cache Hit Rate")} icon={Recycle} iconColor="var(--color-safe)" subtitle={t("Cheap cache reads vs fresh input")}>
           <CacheHitRate ins={ins} />
         </Panel>
       </div>
 
       {/* Row 2: cost efficiency */}
-      <Panel title="Cost Efficiency" icon={Coins} subtitle="Estimated spend per unit of work">
+      <Panel title={t("Cost Efficiency")} icon={Coins} subtitle={t("Estimated spend per unit of work")}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatTile label="per commit" value={money(ins.efficiency.costPerCommit)} />
-          <StatTile label="per file changed" value={money(ins.efficiency.costPerFile)} />
-          <StatTile label="per session" value={money(ins.efficiency.costPerSession)} />
+          <StatTile label={t("per commit")} value={money(ins.efficiency.costPerCommit)} />
+          <StatTile label={t("per file changed")} value={money(ins.efficiency.costPerFile)} />
+          <StatTile label={t("per session")} value={money(ins.efficiency.costPerSession)} />
           <StatTile
-            label="tokens / tool call"
+            label={t("tokens / tool call")}
             value={ins.efficiency.tokensPerToolCall == null ? "—" : formatTokens(Math.round(ins.efficiency.tokensPerToolCall))}
           />
         </div>
@@ -70,52 +72,52 @@ export function Insights() {
 
       {/* Row 3: tool usage + risk interception + model cost */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Panel title="Tool Usage" icon={TerminalSquare} subtitle="What your agents actually do">
-          {ins.toolUsage.length ? <BarList items={ins.toolUsage.map((t) => ({ label: t.name, value: t.count }))} color="var(--color-claude)" /> : <EmptyState icon={TerminalSquare} title="No tool calls yet" />}
+        <Panel title={t("Tool Usage")} icon={TerminalSquare} subtitle={t("What your agents actually do")}>
+          {ins.toolUsage.length ? <BarList items={ins.toolUsage.map((t) => ({ label: t.name, value: t.count }))} color="var(--color-claude)" /> : <EmptyState icon={TerminalSquare} title={t("No tool calls yet")} />}
         </Panel>
 
-        <Panel title="Risk Interception" icon={ShieldAlert} iconColor="var(--color-warn)" subtitle="Flagged share of tool calls">
+        <Panel title={t("Risk Interception")} icon={ShieldAlert} iconColor="var(--color-warn)" subtitle={t("Flagged share of tool calls")}>
           <RiskInterception ins={ins} />
         </Panel>
 
-        <Panel title="Cost by Model" icon={Cpu} subtitle="Estimated spend per model">
-          {ins.models.length ? <ModelCost ins={ins} /> : <EmptyState icon={Cpu} title="No model data yet" />}
+        <Panel title={t("Cost by Model")} icon={Cpu} subtitle={t("Estimated spend per model")}>
+          {ins.models.length ? <ModelCost ins={ins} /> : <EmptyState icon={Cpu} title={t("No model data yet")} />}
         </Panel>
       </div>
 
       {/* Row 4: latency + command failures */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel
-          title="Tool Latency"
+          title={t("Tool Latency")}
           icon={Timer}
           iconColor="var(--color-codex)"
-          subtitle="Where your agents actually spend time"
+          subtitle={t("Where your agents actually spend time")}
           className="xl:col-span-2"
         >
           <ToolLatency ins={ins} />
         </Panel>
-        <Panel title="Command Failures" icon={AlertTriangle} iconColor="var(--color-warn)" subtitle="Share of commands that exit non-zero">
+        <Panel title={t("Command Failures")} icon={AlertTriangle} iconColor="var(--color-warn)" subtitle={t("Share of commands that exit non-zero")}>
           <CommandFailures ins={ins} />
         </Panel>
       </div>
 
       {/* Row 5: file types + session outcomes */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Panel title="File Types" icon={FileType2} subtitle="What your agents edit, by extension" className="xl:col-span-2">
+        <Panel title={t("File Types")} icon={FileType2} subtitle={t("What your agents edit, by extension")} className="xl:col-span-2">
           {ins.fileTypes.length ? (
             <BarList items={ins.fileTypes.map((f) => ({ label: f.ext, value: f.count }))} color="var(--color-safe)" />
           ) : (
-            <EmptyState icon={FileType2} title="No file changes yet" />
+            <EmptyState icon={FileType2} title={t("No file changes yet")} />
           )}
         </Panel>
-        <Panel title="Session Outcomes" icon={Activity} subtitle="How sessions end" iconColor="var(--color-safe)">
+        <Panel title={t("Session Outcomes")} icon={Activity} subtitle={t("How sessions end")} iconColor="var(--color-safe)">
           <Outcomes ins={ins} />
         </Panel>
       </div>
 
       {/* Row 6: daily trend */}
-      <Panel title="Daily Trend" icon={CalendarDays} subtitle="Estimated cost & tokens per day (last 30 days)">
-        {ins.daily.length ? <DailyTrend ins={ins} /> : <EmptyState icon={CalendarDays} title="No dated activity yet" />}
+      <Panel title={t("Daily Trend")} icon={CalendarDays} subtitle={t("Estimated cost & tokens per day (last 30 days)")}>
+        {ins.daily.length ? <DailyTrend ins={ins} /> : <EmptyState icon={CalendarDays} title={t("No dated activity yet")} />}
       </Panel>
     </div>
   );
@@ -135,23 +137,24 @@ function StatTile({ label, value }: { label: string; value: string }) {
 }
 
 function TokenComposition({ ins }: { ins: InsightsData }) {
+  const t = useT();
   const { tokens } = ins;
   if (!tokens.hasBreakdown || tokens.total === 0) {
     return (
-      <EmptyState icon={Boxes} title="No token breakdown yet">
-        Run Claude Code or Codex — token composition is read from the transcript.
+      <EmptyState icon={Boxes} title={t("No token breakdown yet")}>
+        {t("Run Claude Code or Codex — token composition is read from the transcript.")}
       </EmptyState>
     );
   }
   const parts = [
-    { name: "Uncached input", value: tokens.uncachedInput, color: TOKEN_COLORS.uncachedInput },
-    { name: "Cache read", value: tokens.cacheRead, color: TOKEN_COLORS.cacheRead },
-    { name: "Output", value: tokens.output, color: TOKEN_COLORS.output },
-    { name: "Cache write", value: tokens.cacheWrite, color: TOKEN_COLORS.cacheWrite },
+    { name: t("Uncached input"), value: tokens.uncachedInput, color: TOKEN_COLORS.uncachedInput },
+    { name: t("Cache read"), value: tokens.cacheRead, color: TOKEN_COLORS.cacheRead },
+    { name: t("Output"), value: tokens.output, color: TOKEN_COLORS.output },
+    { name: t("Cache write"), value: tokens.cacheWrite, color: TOKEN_COLORS.cacheWrite },
   ].filter((p) => p.value > 0);
   return (
     <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-2">
-      <Donut data={parts} height={170} centerLabel={formatTokens(tokens.total)} centerSub="total" />
+      <Donut data={parts} height={170} centerLabel={formatTokens(tokens.total)} centerSub={t("total")} />
       <div className="space-y-2">
         {parts.map((p) => (
           <div key={p.name} className="flex items-center justify-between text-[12px]">
@@ -170,8 +173,9 @@ function TokenComposition({ ins }: { ins: InsightsData }) {
 }
 
 function CacheHitRate({ ins }: { ins: InsightsData }) {
+  const t = useT();
   const { tokens } = ins;
-  if (!tokens.hasBreakdown) return <EmptyState icon={Recycle} title="No data yet" />;
+  if (!tokens.hasBreakdown) return <EmptyState icon={Recycle} title={t("No data yet")} />;
   const pct = tokens.cacheHitRate;
   const color = pct >= 0.7 ? "var(--color-safe)" : pct >= 0.4 ? "var(--color-warn)" : "var(--color-danger)";
   return (
@@ -179,18 +183,19 @@ function CacheHitRate({ ins }: { ins: InsightsData }) {
       <span className="aac-tnum text-[44px] font-bold leading-none" style={{ color }}>
         {formatPct(pct)}
       </span>
-      <span className="text-[11px] text-ink-3">of input tokens were cache reads</span>
+      <span className="text-[11px] text-ink-3">{t("of input tokens were cache reads")}</span>
       <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-2">
         <div className="h-full rounded-full" style={{ width: `${Math.round(pct * 100)}%`, background: color }} />
       </div>
       <p className="mt-1 text-center text-[11px] leading-snug text-ink-3">
-        Cache reads are billed at a fraction of fresh input — a high rate means most of your context is being reused cheaply.
+        {t("Cache reads are billed at a fraction of fresh input — a high rate means most of your context is being reused cheaply.")}
       </p>
     </div>
   );
 }
 
 function RiskInterception({ ins }: { ins: InsightsData }) {
+  const t = useT();
   const { flagged, toolCalls, rate } = ins.risk;
   const color = rate >= 0.1 ? "var(--color-danger)" : rate >= 0.03 ? "var(--color-warn)" : "var(--color-safe)";
   return (
@@ -199,13 +204,13 @@ function RiskInterception({ ins }: { ins: InsightsData }) {
         {formatPct(rate)}
       </span>
       <span className="text-[11px] text-ink-3">
-        {formatNumber(flagged)} of {formatNumber(toolCalls)} tool calls flagged
+        {t("{flagged} of {toolCalls} tool calls flagged", { flagged: formatNumber(flagged), toolCalls: formatNumber(toolCalls) })}
       </span>
       <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-2">
         <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round(rate * 100))}%`, background: color }} />
       </div>
       <p className="mt-1 text-center text-[11px] leading-snug text-ink-3">
-        Share of your agents' actions that tripped a risk rule. Lower is calmer; a spike is worth a look on the Risk Radar.
+        {t("Share of your agents' actions that tripped a risk rule. Lower is calmer; a spike is worth a look on the Risk Radar.")}
       </p>
     </div>
   );
@@ -239,47 +244,49 @@ function ModelCost({ ins }: { ins: InsightsData }) {
 }
 
 function ToolLatency({ ins }: { ins: InsightsData }) {
+  const t = useT();
   const { latency } = ins;
   if (!latency.sampled) {
     return (
-      <EmptyState icon={Timer} title="No timing data yet">
-        Latency appears once tool calls with timing are collected.
+      <EmptyState icon={Timer} title={t("No timing data yet")}>
+        {t("Latency appears once tool calls with timing are collected.")}
       </EmptyState>
     );
   }
-  const max = Math.max(1, ...latency.tools.map((t) => t.medianMs));
+  const max = Math.max(1, ...latency.tools.map((tool) => tool.medianMs));
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-3">
-        <StatTile label="median tool latency" value={formatDuration(latency.medianMs)} />
-        <StatTile label="median thinking time" value={formatDuration(latency.thinkingMs)} />
+        <StatTile label={t("median tool latency")} value={formatDuration(latency.medianMs)} />
+        <StatTile label={t("median thinking time")} value={formatDuration(latency.thinkingMs)} />
       </div>
       <div className="space-y-2.5">
-        {latency.tools.slice(0, 8).map((t) => (
-          <div key={t.name}>
+        {latency.tools.slice(0, 8).map((tool) => (
+          <div key={tool.name}>
             <div className="flex items-center justify-between text-[12px]">
-              <span className="aac-truncate font-mono text-ink-2">{t.name}</span>
+              <span className="aac-truncate font-mono text-ink-2">{tool.name}</span>
               <span className="aac-tnum text-ink">
-                {formatDuration(t.medianMs)}{" "}
-                <span className="text-ink-3">· p90 {formatDuration(t.p90Ms)} · ×{formatNumber(t.count)}</span>
+                {formatDuration(tool.medianMs)}{" "}
+                <span className="text-ink-3">· p90 {formatDuration(tool.p90Ms)} · ×{formatNumber(tool.count)}</span>
               </span>
             </div>
             <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface-2">
-              <div className="h-full rounded-full" style={{ width: `${Math.max(3, (t.medianMs / max) * 100)}%`, background: "var(--color-codex)" }} />
+              <div className="h-full rounded-full" style={{ width: `${Math.max(3, (tool.medianMs / max) * 100)}%`, background: "var(--color-codex)" }} />
             </div>
           </div>
         ))}
       </div>
       <p className="text-[11px] leading-snug text-ink-3">
-        Median execution time per tool. “Thinking time” is how long from your prompt to the agent’s first action.
+        {t("Median execution time per tool. “Thinking time” is how long from your prompt to the agent’s first action.")}
       </p>
     </div>
   );
 }
 
 function CommandFailures({ ins }: { ins: InsightsData }) {
+  const t = useT();
   const { failures } = ins;
-  if (!failures.withExit) return <EmptyState icon={AlertTriangle} title="No commands with exit codes yet" />;
+  if (!failures.withExit) return <EmptyState icon={AlertTriangle} title={t("No commands with exit codes yet")} />;
   const rate = failures.rate;
   const color = rate >= 0.2 ? "var(--color-danger)" : rate >= 0.05 ? "var(--color-warn)" : "var(--color-safe)";
   return (
@@ -288,7 +295,7 @@ function CommandFailures({ ins }: { ins: InsightsData }) {
         {formatPct(rate)}
       </span>
       <span className="text-[11px] text-ink-3">
-        {formatNumber(failures.failed)} of {formatNumber(failures.withExit)} commands exited non-zero
+        {t("{failed} of {withExit} commands exited non-zero", { failed: formatNumber(failures.failed), withExit: formatNumber(failures.withExit) })}
       </span>
       <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-2">
         <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round(rate * 100))}%`, background: color }} />
@@ -308,18 +315,19 @@ function CommandFailures({ ins }: { ins: InsightsData }) {
 }
 
 function Outcomes({ ins }: { ins: InsightsData }) {
+  const t = useT();
   const { outcomes } = ins;
-  if (!outcomes.total) return <EmptyState icon={Activity} title="No sessions yet" />;
+  if (!outcomes.total) return <EmptyState icon={Activity} title={t("No sessions yet")} />;
   const segs = [
-    { label: "completed", value: outcomes.completed, color: "var(--color-safe)" },
-    { label: "failed", value: outcomes.failed, color: "var(--color-danger)" },
-    { label: "interrupted", value: outcomes.active, color: "var(--color-warn)" },
+    { label: t("completed"), value: outcomes.completed, color: "var(--color-safe)" },
+    { label: t("failed"), value: outcomes.failed, color: "var(--color-danger)" },
+    { label: t("interrupted"), value: outcomes.active, color: "var(--color-warn)" },
   ].filter((s) => s.value > 0);
   return (
     <div className="flex flex-col gap-3 py-1">
       <div className="flex items-baseline gap-2">
         <span className="aac-tnum text-[34px] font-bold leading-none text-safe">{formatPct(outcomes.completionRate)}</span>
-        <span className="text-[11px] text-ink-3">completed cleanly</span>
+        <span className="text-[11px] text-ink-3">{t("completed cleanly")}</span>
       </div>
       <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-surface-2">
         {segs.map((s) => (
@@ -338,7 +346,7 @@ function Outcomes({ ins }: { ins: InsightsData }) {
         ))}
       </div>
       <p className="text-[11px] leading-snug text-ink-3">
-        “Interrupted” sessions ended without a clean stop — abandoned or cut off mid-turn.
+        {t("“Interrupted” sessions ended without a clean stop — abandoned or cut off mid-turn.")}
       </p>
     </div>
   );

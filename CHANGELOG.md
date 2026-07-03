@@ -4,6 +4,17 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.14] — 2026-07-04
+
+### Added
+
+- **Japanese UI with a language switch.** The whole dashboard is now localizable:
+  an **EN / 日本語** toggle in the top bar switches the interface instantly, and
+  the choice is remembered (the first run follows your browser language). Brand
+  names, commands, model names, file paths, and collected data stay as-is.
+- **Japanese README.** A 日本語ガイド section is appended to the README, shown on
+  both GitHub and npm.
+
 ## [0.1.13] — 2026-07-04
 
 ### Fixed

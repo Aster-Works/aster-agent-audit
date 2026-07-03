@@ -34,8 +34,10 @@ import {
   SEVERITY_LABEL,
 } from "../lib/format";
 import { computeSafety, toSafetyRadar, type Safety } from "../lib/safety";
+import { useT } from "../lib/i18n";
 
 export function RiskRadar() {
+  const t = useT();
   const navigate = useNavigate();
   const dataset = useDataset();
   const { risk, mcpServers, policyEvents, overview, mcpScan } = dataset;
@@ -104,13 +106,13 @@ export function RiskRadar() {
         ))}
         <div className="aac-card-2 flex flex-col gap-1 p-3">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium text-ink-3">Clean events</span>
+            <span className="text-[11px] font-medium text-ink-3">{t("Clean events")}</span>
             <ShieldCheck size={14} className="text-safe" />
           </div>
           <span className="aac-tnum text-[22px] font-semibold leading-none text-safe">
             {cleanEvents}
           </span>
-          <span className="text-[10px] text-ink-3">no risk detected</span>
+          <span className="text-[10px] text-ink-3">{t("no risk detected")}</span>
         </div>
       </div>
 
@@ -118,12 +120,12 @@ export function RiskRadar() {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         {/* Findings list */}
         <Panel
-          title="Recent Flagged Events"
+          title={t("Recent Flagged Events")}
           icon={ListChecks}
           subtitle={
             resolvedCount > 0
-              ? `${active.length} active · ${resolvedCount} resolved`
-              : `${active.length} findings · ${counts.get("critical")} critical`
+              ? t("{active} active · {resolved} resolved", { active: active.length, resolved: resolvedCount })
+              : t("{active} findings · {critical} critical", { active: active.length, critical: counts.get("critical") ?? 0 })
           }
           noBodyPadding
           className="self-start"
@@ -143,10 +145,10 @@ export function RiskRadar() {
         {/* Safety surface + matrix */}
         <div className="flex flex-col gap-4">
           <Panel
-            title="Safety Surface"
+            title={t("Safety Surface")}
             icon={safety.safe ? ShieldCheck : ShieldAlert}
             iconColor={safety.color}
-            subtitle="Fuller and greener means safer"
+            subtitle={t("Fuller and greener means safer")}
           >
             <SafetyHeadline safety={safety} findings={active.length} />
             <RiskRadarChart
@@ -156,14 +158,14 @@ export function RiskRadar() {
               fillOpacity={safety.safe ? 0.34 : 0.2}
             />
           </Panel>
-          <Panel title="Risk Matrix" icon={Grid3x3} subtitle="Category × severity">
+          <Panel title={t("Risk Matrix")} icon={Grid3x3} subtitle={t("Category × severity")}>
             <RiskMatrix risk={active} />
           </Panel>
         </div>
 
         {/* Finding details */}
         <Panel
-          title="Finding Details"
+          title={t("Finding Details")}
           icon={ShieldAlert}
           iconColor={selected ? SEVERITY_COLOR_VAR[selected.severity] : undefined}
           action={
@@ -173,7 +175,7 @@ export function RiskRadar() {
                 onClick={() => navigate(`/session-replay/${selected.sessionId}`)}
                 className="inline-flex items-center gap-0.5 text-[11px] text-ink-3 hover:text-ink-2"
               >
-                Open session <ArrowRight size={12} />
+                {t("Open session")} <ArrowRight size={12} />
               </button>
             )
           }
@@ -186,7 +188,7 @@ export function RiskRadar() {
               onSetStatus={(status) => setStatus(selected, status)}
             />
           ) : (
-            <EmptyState icon={ShieldCheck} title="No findings" />
+            <EmptyState icon={ShieldCheck} title={t("No findings")} />
           )}
         </Panel>
       </div>
@@ -194,23 +196,23 @@ export function RiskRadar() {
       {/* MCP map + policy timeline */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel
-          title="MCP Permission Map"
+          title={t("MCP Permission Map")}
           icon={Plug}
           subtitle={
             mcpScan
-              ? `${mcpScan.serverCount} servers · posture ${mcpScan.grade} (${mcpScan.score}/100)`
-              : "Tool servers and the capabilities they hold"
+              ? t("{count} servers · posture {grade} ({score}/100)", { count: mcpScan.serverCount, grade: mcpScan.grade, score: mcpScan.score })
+              : t("Tool servers and the capabilities they hold")
           }
           className="xl:col-span-2"
         >
           {mcpServers.length ? (
             <McpMap servers={mcpServers} />
           ) : (
-            <EmptyState icon={ShieldCheck} title="No MCP servers configured" />
+            <EmptyState icon={ShieldCheck} title={t("No MCP servers configured")} />
           )}
         </Panel>
 
-        <Panel title="Policy Timeline" icon={ListChecks} subtitle="Recent policy decisions" noBodyPadding>
+        <Panel title={t("Policy Timeline")} icon={ListChecks} subtitle={t("Recent policy decisions")} noBodyPadding>
           <div className="max-h-[300px] overflow-y-auto px-4 py-3">
             <ol className="relative ml-1 border-l border-line">
               {policyEvents.map((p) => (
@@ -238,17 +240,18 @@ export function RiskRadar() {
 }
 
 function SeverityCounter({ severity, count }: { severity: RiskSeverity; count: number }) {
+  const t = useT();
   const color = SEVERITY_COLOR_VAR[severity];
   return (
     <div className="aac-card-2 flex flex-col gap-1 p-3">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium text-ink-3">{SEVERITY_LABEL[severity]}</span>
+        <span className="text-[11px] font-medium text-ink-3">{t(SEVERITY_LABEL[severity])}</span>
         <SeverityDot severity={severity} />
       </div>
       <span className="aac-tnum text-[22px] font-semibold leading-none" style={{ color: count ? color : "var(--color-ink-3)" }}>
         {count}
       </span>
-      <span className="text-[10px] text-ink-3">findings</span>
+      <span className="text-[10px] text-ink-3">{t("findings")}</span>
     </div>
   );
 }
@@ -262,6 +265,7 @@ function FindingRow({
   selected: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   const Icon = CATEGORY_ICON[row.category];
   const isResolved = row.status === "resolved";
   return (
@@ -288,7 +292,7 @@ function FindingRow({
           </span>
           {isResolved ? (
             <span className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-safe" style={{ background: "color-mix(in srgb, var(--color-safe) 14%, transparent)" }}>
-              <Check size={10} /> Resolved
+              <Check size={10} /> {t("Resolved")}
             </span>
           ) : (
             <RiskBadge severity={row.severity} />
@@ -376,6 +380,7 @@ function FindingDetails({
   busy: boolean;
   onSetStatus: (status: "open" | "resolved") => void;
 }) {
+  const t = useT();
   const isMcp = row.sessionId === "mcp-config-scan";
   const isResolved = row.status === "resolved";
   const isSecret = row.category === "secrets";
@@ -390,28 +395,28 @@ function FindingDetails({
       <h3 className="text-[14px] font-semibold leading-snug text-ink">{row.title}</h3>
 
       <div className="aac-inset rounded-md px-3 py-1">
-        <KeyValue label="Agent">{AGENT_LABELS[row.agent]}</KeyValue>
-        <KeyValue label="Time" mono>{formatClock(row.timestamp)}</KeyValue>
-        <KeyValue label="Status">
+        <KeyValue label={t("Agent")}>{AGENT_LABELS[row.agent]}</KeyValue>
+        <KeyValue label={t("Time")} mono>{formatClock(row.timestamp)}</KeyValue>
+        <KeyValue label={t("Status")}>
           <span className="capitalize">{row.status}</span>
         </KeyValue>
       </div>
 
       <div>
-        <SectionTitle>What happened</SectionTitle>
+        <SectionTitle>{t("What happened")}</SectionTitle>
         <p className="text-[12px] leading-relaxed text-ink-2">{row.description}</p>
       </div>
 
       {row.redactedEvidence && (
         <div>
-          <SectionTitle>Evidence (redacted, not executed)</SectionTitle>
+          <SectionTitle>{t("Evidence (redacted, not executed)")}</SectionTitle>
           <CommandBlock command={row.redactedEvidence} danger={row.severity !== "low" && row.severity !== "info"} />
         </div>
       )}
 
       <div className="rounded-md border border-safe/30 bg-safe/[0.06] px-3 py-2.5">
         <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-safe">
-          <ShieldCheck size={12} /> Recommended action
+          <ShieldCheck size={12} /> {t("Recommended action")}
         </div>
         <p className="mt-1 text-[12px] leading-relaxed text-ink-2">{row.recommendedAction}</p>
       </div>
@@ -422,14 +427,13 @@ function FindingDetails({
       {isSecret && rotate && (
         <div className="rounded-md border border-danger/30 bg-danger/[0.06] px-3 py-2.5">
           <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-danger">
-            <KeyRound size={12} /> Rotate the key — this is the real fix
+            <KeyRound size={12} /> {t("Rotate the key — this is the real fix")}
           </div>
           <p className="mt-1 text-[12px] leading-relaxed text-ink-2">
-            This console never stored the raw key (the record above is redacted). The real value still
-            sits in plaintext in the agent’s own log
+            {t("This console never stored the raw key (the record above is redacted). The real value still sits in plaintext in the agent’s own log")}
             {row.agent === "codex" ? " (~/.codex/sessions/…)" : row.agent === "claude-code" ? " (~/.claude/projects/…)" : ""}
-            {isMcp ? " and in the MCP config it came from" : " and wherever it came from (e.g. a .env)"} — so it’s
-            already exposed. Deleting a record wouldn’t undo that; <span className="text-ink">rotate the key</span> to neutralize it.
+            {isMcp ? t(" and in the MCP config it came from") : t(" and wherever it came from (e.g. a .env)")}
+            {t(" — so it’s already exposed. Deleting a record wouldn’t undo that;")} <span className="text-ink">{t("rotate the key")}</span> {t("to neutralize it.")}
           </p>
           {rotate.url && (
             <a
@@ -438,7 +442,7 @@ function FindingDetails({
               rel="noreferrer"
               className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-[12px] font-medium text-danger hover:bg-danger/20"
             >
-              <KeyRound size={13} /> Rotate at {rotate.provider} <ExternalLink size={12} />
+              <KeyRound size={13} /> {t("Rotate at {provider}", { provider: rotate.provider })} <ExternalLink size={12} />
             </a>
           )}
           {rotate.hint && <p className="mt-1.5 text-[11px] leading-snug text-ink-3">{rotate.hint}</p>}
@@ -455,7 +459,7 @@ function FindingDetails({
               onClick={() => onSetStatus("open")}
               className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] font-medium text-ink-2 hover:border-ink-3/40 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <RotateCcw size={13} /> Reopen
+              <RotateCcw size={13} /> {t("Reopen")}
             </button>
           ) : (
             <button
@@ -464,16 +468,15 @@ function FindingDetails({
               onClick={() => onSetStatus("resolved")}
               className="inline-flex items-center gap-1.5 rounded-md border border-safe/40 bg-safe/10 px-2.5 py-1.5 text-[12px] font-medium text-safe hover:bg-safe/20 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              <Check size={13} /> Mark resolved
+              <Check size={13} /> {t("Mark resolved")}
             </button>
           )}
-          <span className="ml-auto text-[10px] text-ink-3">Marks it handled — the record is kept, never deleted.</span>
+          <span className="ml-auto text-[10px] text-ink-3">{t("Marks it handled — the record is kept, never deleted.")}</span>
         </div>
       ) : (
         isMcp && (
           <p className="border-t border-line pt-3 text-[11px] leading-snug text-ink-3">
-            This reflects your current MCP configuration — it clears once you fix the config (move the key to
-            an env-var reference like <span className="font-mono">${"{VAR}"}</span> and rotate it).
+            {t("This reflects your current MCP configuration — it clears once you fix the config (move the key to an env-var reference like")} <span className="font-mono">${"{VAR}"}</span> {t("and rotate it).")}
           </p>
         )
       )}
@@ -486,6 +489,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 }
 
 function SafetyHeadline({ safety, findings }: { safety: Safety; findings: number }) {
+  const t = useT();
   return (
     <div className="mb-1 flex items-center justify-between">
       <div className="flex items-baseline gap-1.5">
@@ -502,13 +506,14 @@ function SafetyHeadline({ safety, findings }: { safety: Safety; findings: number
         style={{ color: safety.color, background: `color-mix(in srgb, ${safety.color} 14%, transparent)` }}
       >
         {safety.safe ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />}
-        {findings === 0 ? "All clear" : safety.label}
+        {findings === 0 ? t("All clear") : safety.label}
       </div>
     </div>
   );
 }
 
 function RiskMatrix({ risk }: { risk: RiskRow[] }) {
+  const t = useT();
   const sevs = [...SEVERITY_ORDER].reverse();
   function count(cat: RiskCategory, sev: RiskSeverity) {
     return risk.filter((r) => r.category === cat && r.severity === sev).length;
@@ -535,7 +540,7 @@ function RiskMatrix({ risk }: { risk: RiskRow[] }) {
                 <td className="py-1 pr-2">
                   <span className="flex items-center gap-1 text-ink-2">
                     <Icon size={12} className="text-ink-3" />
-                    {CATEGORY_LABEL[cat]}
+                    {t(CATEGORY_LABEL[cat])}
                   </span>
                 </td>
                 {sevs.map((s) => {
@@ -567,6 +572,7 @@ function RiskMatrix({ risk }: { risk: RiskRow[] }) {
 }
 
 function PolicyOutcome({ outcome }: { outcome: "allowed" | "flagged" | "blocked" }) {
+  const t = useT();
   const map = {
     allowed: { color: "var(--color-safe)", label: "Allowed" },
     flagged: { color: "var(--color-warn)", label: "Flagged" },
@@ -578,12 +584,13 @@ function PolicyOutcome({ outcome }: { outcome: "allowed" | "flagged" | "blocked"
       className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
       style={{ color: m.color, background: `color-mix(in srgb, ${m.color} 14%, transparent)` }}
     >
-      {m.label}
+      {t(m.label)}
     </span>
   );
 }
 
 function McpMap({ servers }: { servers: McpServer[] }) {
+  const t = useT();
   const agents = [...new Set(servers.map((s) => s.agent))];
   return (
     <div className="space-y-3">
@@ -592,7 +599,7 @@ function McpMap({ servers }: { servers: McpServer[] }) {
           <div className="mb-1.5 flex items-center gap-2">
             <AgentBadge agent={agent} />
             <span className="text-[11px] text-ink-3">
-              {servers.filter((s) => s.agent === agent).length} servers
+              {t("{n} servers", { n: servers.filter((s) => s.agent === agent).length })}
             </span>
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

@@ -6,6 +6,7 @@
 import { create } from "zustand";
 import type { AgentName } from "@core/types";
 import type { Dataset } from "@core/views";
+import type { Locale } from "../lib/i18n";
 import { getDemoDataset, fetchLiveDataset } from "../data/source";
 
 export type AgentFilter = AgentName | "all";
@@ -20,13 +21,27 @@ type AppState = {
   agentFilter: AgentFilter;
   dateRange: string;
   search: string;
+  locale: Locale;
   setSource: (s: SourceMode) => void;
   loadLive: () => Promise<void>;
   setRepo: (r: string) => void;
   setAgentFilter: (a: AgentFilter) => void;
   setDateRange: (d: string) => void;
   setSearch: (q: string) => void;
+  setLocale: (l: Locale) => void;
 };
+
+/** Persisted locale: saved choice → browser language → English. */
+function initialLocale(): Locale {
+  try {
+    const saved = localStorage.getItem("aac-locale");
+    if (saved === "ja" || saved === "en") return saved;
+    if (typeof navigator !== "undefined" && navigator.language?.toLowerCase().startsWith("ja")) return "ja";
+  } catch {
+    /* ignore */
+  }
+  return "en";
+}
 
 let sse: EventSource | null = null;
 
@@ -38,6 +53,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   agentFilter: "all",
   dateRange: "7d",
   search: "",
+  locale: initialLocale(),
 
   setSource: (source) => {
     if (source === "demo") {
@@ -76,6 +92,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAgentFilter: (agentFilter) => set({ agentFilter }),
   setDateRange: (dateRange) => set({ dateRange }),
   setSearch: (search) => set({ search }),
+  setLocale: (locale) => {
+    try {
+      localStorage.setItem("aac-locale", locale);
+    } catch {
+      /* ignore */
+    }
+    set({ locale });
+  },
 }));
 
 async function probeHealth(): Promise<boolean> {

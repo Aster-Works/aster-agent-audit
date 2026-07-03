@@ -14,6 +14,7 @@ import {
   Save,
 } from "lucide-react";
 import { useAppStore } from "../app/store";
+import { useT } from "../lib/i18n";
 import { Panel, KeyValue, Pill, EmptyState } from "../components/ui";
 import { AgentBadge } from "../components/AgentBadge";
 import { CommandBlock } from "../components/CommandBlock";
@@ -76,6 +77,7 @@ export function Settings() {
   const status = useAppStore((s) => s.dataset.status);
   const live = source === "live";
   const { data, saving, save } = useSettings(live);
+  const t = useT();
 
   return (
     <div className="space-y-4 p-4">
@@ -86,26 +88,26 @@ export function Settings() {
         </span>
         <div className="min-w-0">
           <div className="text-[13px] font-semibold text-ink">
-            No account. No cloud. Your agent history stays on your machine.
+            {t("No account. No cloud. Your agent history stays on your machine.")}
           </div>
           <div className="text-[11px] text-ink-3">
-            Data is stored locally in SQLite. Secrets are redacted before storage. Nothing is uploaded.
+            {t("Data is stored locally in SQLite. Secrets are redacted before storage. Nothing is uploaded.")}
           </div>
         </div>
         {live ? (
           <Pill color="var(--color-safe)" className="ml-auto shrink-0">
-            <CheckCircle2 size={11} /> Live collector
+            <CheckCircle2 size={11} /> {t("Live collector")}
           </Pill>
         ) : (
           <Pill color="var(--color-warn)" className="ml-auto shrink-0">
-            <CircleAlert size={11} /> Demo mode
+            <CircleAlert size={11} /> {t("Demo mode")}
           </Pill>
         )}
       </div>
 
       {!live && (
         <div className="aac-card px-4 py-3 text-[12px] text-ink-2">
-          You’re viewing demo data. Start the collector to see and edit real settings:
+          {t("You’re viewing demo data. Start the collector to see and edit real settings:")}
           <div className="mt-2 max-w-sm">
             <CommandBlock command="aster-agent dashboard" />
           </div>
@@ -114,7 +116,7 @@ export function Settings() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {/* Agent integrations — real status */}
-        <Panel title="Agent Integrations" icon={Plug} subtitle="How each agent’s activity is collected">
+        <Panel title={t("Agent Integrations")} icon={Plug} subtitle={t("How each agent’s activity is collected")}>
           <div className="space-y-2">
             {(data?.agents ?? fallbackAgents()).map((a) => (
               <div key={a.agent} className="rounded-md border border-line bg-surface-2 px-3 py-2.5">
@@ -131,28 +133,28 @@ export function Settings() {
             ))}
             <div className="rounded-md border border-line bg-bg px-3 py-2.5">
               <div className="mb-1.5 text-[11px] text-ink-3">
-                Claude Code uses a local hook; Codex is read automatically from its session logs — no config change.
+                {t("Claude Code uses a local hook; Codex is read automatically from its session logs — no config change.")}
               </div>
               <CommandBlock command="aster-agent init" />
               <p className="mt-1.5 text-[11px] leading-relaxed text-ink-3">
-                Existing config is backed up first. The hook only POSTs to{" "}
-                <span className="font-mono">127.0.0.1:{data?.status.port ?? status.port}</span> and never blocks your workflow.
+                {t("Existing config is backed up first. The hook only POSTs to")}{" "}
+                <span className="font-mono">127.0.0.1:{data?.status.port ?? status.port}</span> {t("and never blocks your workflow.")}
               </p>
             </div>
           </div>
         </Panel>
 
         {/* Data retention — editable */}
-        <Panel title="Data Retention" icon={Timer} subtitle="How long history is kept before pruning">
+        <Panel title={t("Data Retention")} icon={Timer} subtitle={t("How long history is kept before pruning")}>
           {live && data ? (
             <RetentionEditor value={data.retentionDays} saving={saving} onSave={(d) => save({ retentionDays: d })} />
           ) : (
-            <EmptyState icon={Timer} title="Start the collector to edit retention" />
+            <EmptyState icon={Timer} title={t("Start the collector to edit retention")} />
           )}
         </Panel>
 
         {/* Cost model — editable pricing */}
-        <Panel title="Cost Model" icon={Coins} subtitle="Estimate rates — USD per 1M tokens" className="xl:col-span-2">
+        <Panel title={t("Cost Model")} icon={Coins} subtitle={t("Estimate rates — USD per 1M tokens")} className="xl:col-span-2">
           {live && data ? (
             <PricingEditor
               families={data.pricingFamilies}
@@ -161,55 +163,59 @@ export function Settings() {
               onSave={(p) => save({ pricing: p })}
             />
           ) : (
-            <EmptyState icon={Coins} title="Start the collector to edit rates" />
+            <EmptyState icon={Coins} title={t("Start the collector to edit rates")} />
           )}
         </Panel>
 
         {/* Local storage */}
-        <Panel title="Local Storage" icon={HardDrive} subtitle="Where your data lives">
+        <Panel title={t("Local Storage")} icon={HardDrive} subtitle={t("Where your data lives")}>
           <div className="aac-inset rounded-md px-3 py-1.5">
-            <KeyValue label="Database" mono>{data?.dbPath ?? status.dbPath}</KeyValue>
-            <KeyValue label="Config dir" mono>~/.aster-agent-console/</KeyValue>
-            <KeyValue label="Spool" mono>~/.aster-agent-console/spool/</KeyValue>
-            <KeyValue label="Backups" mono>~/.aster-agent-console/backups/</KeyValue>
+            <KeyValue label={t("Database")} mono>{data?.dbPath ?? status.dbPath}</KeyValue>
+            <KeyValue label={t("Config dir")} mono>~/.aster-agent-console/</KeyValue>
+            <KeyValue label={t("Spool")} mono>~/.aster-agent-console/spool/</KeyValue>
+            <KeyValue label={t("Backups")} mono>~/.aster-agent-console/backups/</KeyValue>
             {data && (
-              <KeyValue label="Stored">
-                {data.counts.sessions} sessions · {data.counts.events} events · {data.counts.fileChanges} file changes
+              <KeyValue label={t("Stored")}>
+                {t("{sessions} sessions · {events} events · {files} file changes", {
+                  sessions: data.counts.sessions,
+                  events: data.counts.events,
+                  files: data.counts.fileChanges,
+                })}
               </KeyValue>
             )}
-            <KeyValue label="Mode">
+            <KeyValue label={t("Mode")}>
               <span className="capitalize">{data?.status.mode ?? status.mode}</span>
             </KeyValue>
           </div>
         </Panel>
 
         {/* Export — working in live mode */}
-        <Panel title="Export" icon={Download} subtitle="Manual & local — nothing leaves unless you click">
+        <Panel title={t("Export")} icon={Download} subtitle={t("Manual & local — nothing leaves unless you click")}>
           <ExportButtons live={live} />
           <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
-            Export is on-demand and downloads to your machine. Cloud sync is not part of this tool.
+            {t("Export is on-demand and downloads to your machine. Cloud sync is not part of this tool.")}
           </p>
         </Panel>
 
         {/* Redaction policy */}
-        <Panel title="Redaction Policy" icon={EyeOff} subtitle="Always on — secrets are stripped before storage">
+        <Panel title={t("Redaction Policy")} icon={EyeOff} subtitle={t("Always on — secrets are stripped before storage")}>
           <div className="grid grid-cols-2 gap-1.5">
             {["API keys (sk-…)", "GitHub tokens (ghp_…)", "Supabase / JWT", "Private keys", ".env values", "Bearer tokens", "AWS keys", "URL credentials"].map((k) => (
               <span key={k} className="flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2 py-1.5 text-[11px] text-ink-2">
-                <CheckCircle2 size={12} className="text-safe" /> {k}
+                <CheckCircle2 size={12} className="text-safe" /> {t(k)}
               </span>
             ))}
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
-            Raw secret values are never persisted — only a redacted replacement, a fingerprint, and finding metadata.
+            {t("Raw secret values are never persisted — only a redacted replacement, a fingerprint, and finding metadata.")}
           </p>
         </Panel>
 
         {/* Risk policy — real active rules */}
         <Panel
-          title="Risk Policy"
+          title={t("Risk Policy")}
           icon={ShieldAlert}
-          subtitle={data ? `${data.rules.length} active detection rules` : "Active detection rules"}
+          subtitle={data ? t("{n} active detection rules", { n: data.rules.length }) : t("Active detection rules")}
           className="xl:col-span-2"
         >
           {data ? (
@@ -219,12 +225,12 @@ export function Settings() {
               ))}
             </div>
           ) : (
-            <EmptyState icon={ShieldAlert} title="Start the collector to list active rules" />
+            <EmptyState icon={ShieldAlert} title={t("Start the collector to list active rules")} />
           )}
         </Panel>
 
         {/* Diagnostics — real */}
-        <Panel title="Diagnostics" icon={Stethoscope} subtitle="Live environment checks" className="xl:col-span-2">
+        <Panel title={t("Diagnostics")} icon={Stethoscope} subtitle={t("Live environment checks")} className="xl:col-span-2">
           {data ? (
             <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               {data.diagnostics.map((d) => (
@@ -233,7 +239,7 @@ export function Settings() {
             </div>
           ) : (
             <div className="space-y-2">
-              <EmptyState icon={Stethoscope} title="Start the collector for live diagnostics" />
+              <EmptyState icon={Stethoscope} title={t("Start the collector for live diagnostics")} />
               <CommandBlock command="aster-agent doctor" />
             </div>
           )}
@@ -251,22 +257,24 @@ function fallbackAgents(): SettingsData["agents"] {
 }
 
 function AgentStatusPill({ a, live }: { a: SettingsData["agents"][number]; live: boolean }) {
-  if (!live) return <span className="text-[11px] text-ink-3">demo</span>;
+  const t = useT();
+  if (!live) return <span className="text-[11px] text-ink-3">{t("demo")}</span>;
   if (a.installed) {
     return (
       <Pill color="var(--color-safe)">
-        <CheckCircle2 size={11} /> {a.mechanism === "auto" ? "Auto — session logs" : "Collecting (hook)"}
+        <CheckCircle2 size={11} /> {a.mechanism === "auto" ? t("Auto — session logs") : t("Collecting (hook)")}
       </Pill>
     );
   }
   return (
     <Pill color="var(--color-warn)">
-      <CircleAlert size={11} /> {a.mechanism === "auto" ? "No Codex logs yet" : "Hook not installed"}
+      <CircleAlert size={11} /> {a.mechanism === "auto" ? t("No Codex logs yet") : t("Hook not installed")}
     </Pill>
   );
 }
 
 function RetentionEditor({ value, saving, onSave }: { value: number; saving: boolean; onSave: (d: number) => void }) {
+  const t = useT();
   const [v, setV] = useState(String(value));
   useEffect(() => setV(String(value)), [value]);
   const parsed = Math.max(0, Math.round(Number(v) || 0));
@@ -275,7 +283,7 @@ function RetentionEditor({ value, saving, onSave }: { value: number; saving: boo
     <div className="space-y-2">
       <div className="flex items-end gap-2">
         <label className="flex flex-col gap-1">
-          <span className="text-[11px] text-ink-3">Keep history for</span>
+          <span className="text-[11px] text-ink-3">{t("Keep history for")}</span>
           <div className="flex items-center gap-1.5">
             <input
               type="number"
@@ -285,7 +293,7 @@ function RetentionEditor({ value, saving, onSave }: { value: number; saving: boo
               onChange={(e) => setV(e.target.value)}
               className="aac-tnum h-8 w-24 rounded-md border border-line bg-bg px-2 text-[13px] text-ink focus:border-claude/40 focus:outline-none focus:ring-1 focus:ring-claude/40"
             />
-            <span className="text-[12px] text-ink-2">days</span>
+            <span className="text-[12px] text-ink-2">{t("days")}</span>
           </div>
         </label>
         <button
@@ -294,11 +302,11 @@ function RetentionEditor({ value, saving, onSave }: { value: number; saving: boo
           onClick={() => onSave(parsed)}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-claude/40 bg-claude/10 px-3 text-[12px] font-medium text-claude disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <Save size={13} /> {saving ? "Saving…" : "Save"}
+          <Save size={13} /> {saving ? t("Saving…") : t("Save")}
         </button>
       </div>
       <p className="text-[11px] leading-relaxed text-ink-3">
-        Older sessions, events and findings are pruned on start and every 12h. Set to <span className="font-mono">0</span> to keep everything.
+        {t("Older sessions, events and findings are pruned on start and every 12h. Set to")} <span className="font-mono">0</span> {t("to keep everything.")}
       </p>
     </div>
   );
@@ -317,6 +325,7 @@ function PricingEditor({
   saving: boolean;
   onSave: (p: Record<string, RateTuple>) => void;
 }) {
+  const t = useT();
   const [table, setTable] = useState<Record<string, RateTuple>>(pricing);
   useEffect(() => setTable(pricing), [pricing]);
   const dirty = useMemo(() => JSON.stringify(table) !== JSON.stringify(pricing), [table, pricing]);
@@ -338,9 +347,9 @@ function PricingEditor({
         <table className="w-full min-w-[520px] border-collapse text-[12px]">
           <thead>
             <tr className="text-[11px] text-ink-3">
-              <th className="px-2 py-1 text-left font-medium">Model family</th>
+              <th className="px-2 py-1 text-left font-medium">{t("Model family")}</th>
               {RATE_LABELS.map((l) => (
-                <th key={l} className="px-2 py-1 text-right font-medium">{l}</th>
+                <th key={l} className="px-2 py-1 text-right font-medium">{t(l)}</th>
               ))}
             </tr>
           </thead>
@@ -372,15 +381,16 @@ function PricingEditor({
           onClick={() => onSave(table)}
           className="inline-flex h-8 items-center gap-1.5 rounded-md border border-claude/40 bg-claude/10 px-3 text-[12px] font-medium text-claude disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <Save size={13} /> {saving ? "Saving…" : "Save rates"}
+          <Save size={13} /> {saving ? t("Saving…") : t("Save rates")}
         </button>
-        <span className="text-[11px] text-ink-3">USD per 1M tokens. Cost is an estimate; tokens are exact.</span>
+        <span className="text-[11px] text-ink-3">{t("USD per 1M tokens. Cost is an estimate; tokens are exact.")}</span>
       </div>
     </div>
   );
 }
 
 function ExportButtons({ live }: { live: boolean }) {
+  const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
 
   const download = async (kind: "json" | "csv") => {
@@ -400,22 +410,23 @@ function ExportButtons({ live }: { live: boolean }) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      <ExportButton disabled={!live} busy={busy === "json"} onClick={() => download("json")} label="Export work report (JSON)" />
-      <ExportButton disabled={!live} busy={busy === "csv"} onClick={() => download("csv")} label="Export findings (CSV)" />
+      <ExportButton disabled={!live} busy={busy === "json"} onClick={() => download("json")} label={t("Export work report (JSON)")} />
+      <ExportButton disabled={!live} busy={busy === "csv"} onClick={() => download("csv")} label={t("Export findings (CSV)")} />
     </div>
   );
 }
 
 function ExportButton({ label, disabled, busy, onClick }: { label: string; disabled: boolean; busy: boolean; onClick: () => void }) {
+  const t = useT();
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled || busy}
-      title={disabled ? "Available in live mode" : undefined}
+      title={disabled ? t("Available in live mode") : undefined}
       className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] text-ink-2 enabled:hover:border-claude/40 disabled:cursor-not-allowed disabled:text-ink-3"
     >
-      <Download size={13} /> {busy ? "Preparing…" : label}
+      <Download size={13} /> {busy ? t("Preparing…") : label}
     </button>
   );
 }

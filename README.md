@@ -186,3 +186,74 @@ rather than a public issue.
 ## License
 
 MIT © Aster Works — see [LICENSE](LICENSE).
+
+---
+
+# 日本語ガイド
+
+**Aster Agent Console** は、Claude Code と Codex の作業を「安全に・見える化」する、ローカル完結型のダッシュボードです。汎用のトークン/コスト分析ツールではなく、**AI コーディングエージェントの安全監査・作業監査・成果**に特化しています。
+
+> **アカウント不要・クラウド不要。エージェントの履歴はあなたのマシンに残ります。**
+
+## これは何？
+
+エージェントの働きを3つの軸で可視化します。
+
+1. **安全性（Safety）** — 危険なシェルコマンド、秘密情報の露出、MCP の権限リスク、ネットワーク/ファイル/git 操作。
+2. **作業監査（Work Audit）** — 「プロンプト → ツール呼び出し → 差分 → テスト → コミット」という説明可能なタイムライン。
+3. **成果（Outcome）** — セッション、変更ファイル、テスト、コミット、PR 準備度、そして「有益な作業あたりのコスト」。
+
+## インストール
+
+Node.js 20 以上が必要です。
+
+```bash
+npm install -g @asterworks/agent-console   # 以後 `aster-agent` コマンドが使えます
+# インストールせずに試す:
+npx @asterworks/agent-console dashboard
+```
+
+導入から実データ表示まではおよそ5分です（英語の [Quickstart](docs/quickstart.md) を参照）。
+
+## 使い方
+
+```bash
+aster-agent init        # Claude Code / Codex の連携をセットアップ（既存設定は自動バックアップ）
+aster-agent dashboard   # コレクタを起動し、ブラウザでダッシュボードを開く
+aster-agent doctor      # 環境チェック
+aster-agent scan        # MCP 設定のセキュリティ診断
+```
+
+- **Claude Code** はローカルフックで連携します。
+- **Codex** は設定を一切変更せず、セッションログ（`~/.codex/sessions`）を自動で読み取ります。他の `notify`（Codex Computer Use など）を壊しません。
+
+## 安全性・プライバシー
+
+- 既定で外部送信は一切ありません。クラウド同期は常にオプトインです。
+- **秘密情報は保存前に秘匿化**されます（既知のパターンを、ディスクへ書き込む前に除去。ベストエフォート）。
+- フック設定の変更は必ずバックアップされ、完全に元へ戻せます。
+- ローカルサーバーは `127.0.0.1` のみにバインドし、収集した内容を実行することはありません。
+
+> 補足：**露出した鍵は、ローテート（再発行）が唯一の確実な対処**です。ダッシュボードは秘匿化済みの記録を表示するだけで、生の鍵はエージェントのログや元の設定に残ります。Risk Radar の各指摘に、鍵をローテートする場所へのリンクを表示します。
+
+## 画面
+
+概要 / セッション再生 / リポジトリ活動 / リスクレーダー / エージェント / インサイト / 設定。
+
+- **リスクレーダー** — 危険操作・秘密露出・MCP リスクを「安全スコア」と一緒に俯瞰。指摘は **解決（Resolve）** でマークでき、鍵ローテートへ誘導します。
+- **インサイト** — トークン構成・キャッシュ率・コスト効率・ツール利用・レイテンシ・失敗率・ファイル種別・日次推移・セッション転帰。
+- **設定** — 連携状況・保存先・保持日数（編集可）・料金表（編集可）・エクスポート・診断。
+
+## 言語切替（EN / 日本語）
+
+画面右上のトグルで **EN ↔ 日本語** を切り替えられます。選択はブラウザに保存され、次回も維持されます（初回はブラウザの言語設定に従います）。
+
+## ドキュメント（英語）
+
+[Quickstart](docs/quickstart.md)・[プライバシー](docs/privacy.md)・[MCP セキュリティ](docs/mcp-security.md)・[既知の制限](docs/limitations.md)・[トラブルシューティング](docs/troubleshooting.md)・[Changelog](CHANGELOG.md)。
+
+## フィードバック
+
+ベータ版です。バグ報告・要望は [GitHub issues](https://github.com/Aster-Works/aster-agent-console/issues) へ。セキュリティ上の問題は公開 issue ではなく [security advisory](https://github.com/Aster-Works/aster-agent-console/security/advisories/new) からご連絡ください。
+
+ライセンス: MIT © Aster Works

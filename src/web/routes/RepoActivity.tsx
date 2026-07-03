@@ -23,6 +23,7 @@ import { Donut } from "../components/charts";
 import { DiffViewer, type DiffLine } from "../components/DiffViewer";
 import { cn } from "../lib/cn";
 import { AGENT_COLOR_VAR, formatClock, formatNumber } from "../lib/format";
+import { useT } from "../lib/i18n";
 
 const SAMPLE_DIFF: DiffLine[] = [
   { type: "hunk", text: "@@ -18,6 +18,9 @@ redaction" },
@@ -35,6 +36,7 @@ const SAMPLE_DIFF: DiffLine[] = [
 
 export function RepoActivity() {
   const navigate = useNavigate();
+  const t = useT();
   const dataset = useDataset();
   const { repoActivity: ra, fileChanges, sessions } = dataset;
 
@@ -58,20 +60,20 @@ export function RepoActivity() {
     <div className="space-y-4 p-4">
       {/* KPI strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
-        <MetricCard label="Files Changed" value={ra.filesChanged} icon={FileCode2} footnote={`${formatNumber(ra.churn)} churn`} />
-        <MetricCard label="Commits" value={ra.commits} icon={GitCommitHorizontal} delta={20} />
-        <MetricCard label="PR Drafts" value={ra.prDrafts} icon={GitPullRequestDraft} accent="var(--color-cursor)" />
-        <MetricCard label="Tests Passing" value={ra.testsPassing} icon={FlaskConical} accent="var(--color-safe)" footnote={`${ra.testsFailing} failing`} />
-        <MetricCard label="High-risk Files" value={ra.highRiskFilesTouched} icon={ShieldAlert} accent="var(--color-warn)" />
-        <MetricCard label="Churn" value={formatNumber(ra.churn)} icon={Flame} footnote="+1.0k / −0.3k" />
+        <MetricCard label={t("Files Changed")} value={ra.filesChanged} icon={FileCode2} footnote={t("{n} churn", { n: formatNumber(ra.churn) })} />
+        <MetricCard label={t("Commits")} value={ra.commits} icon={GitCommitHorizontal} delta={20} />
+        <MetricCard label={t("PR Drafts")} value={ra.prDrafts} icon={GitPullRequestDraft} accent="var(--color-cursor)" />
+        <MetricCard label={t("Tests Passing")} value={ra.testsPassing} icon={FlaskConical} accent="var(--color-safe)" footnote={t("{n} failing", { n: ra.testsFailing })} />
+        <MetricCard label={t("High-risk Files")} value={ra.highRiskFilesTouched} icon={ShieldAlert} accent="var(--color-warn)" />
+        <MetricCard label={t("Churn")} value={formatNumber(ra.churn)} icon={Flame} footnote="+1.0k / −0.3k" />
       </div>
 
       {/* Directory map + hot files */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
         <Panel
-          title="Directory Map"
+          title={t("Directory Map")}
           icon={FolderTree}
-          subtitle="Rectangle size = churn · color = max risk"
+          subtitle={t("Rectangle size = churn · color = max risk")}
           className="xl:col-span-2"
         >
           <RepoTreemap
@@ -81,7 +83,7 @@ export function RepoActivity() {
           />
         </Panel>
 
-        <Panel title="Hot Files" icon={Flame} iconColor="var(--color-warn)" subtitle="Highest churn this range" noBodyPadding>
+        <Panel title={t("Hot Files")} icon={Flame} iconColor="var(--color-warn)" subtitle={t("Highest churn this range")} noBodyPadding>
           <div className="max-h-[260px] overflow-y-auto">
             {ra.hotFiles.map((f) => {
               const isSel = f.filePath === selectedFile;
@@ -123,7 +125,7 @@ export function RepoActivity() {
 
       {/* Git timeline + selected file */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Panel title="Git Timeline" icon={History} subtitle={`${ra.gitTimeline.length} commits`} className="xl:col-span-2" noBodyPadding>
+        <Panel title={t("Git Timeline")} icon={History} subtitle={t("{n} commits", { n: ra.gitTimeline.length })} className="xl:col-span-2" noBodyPadding>
           <div className="px-4 py-3">
             <ol className="relative ml-2 border-l border-line">
               {ra.gitTimeline.map((c) => (
@@ -136,7 +138,7 @@ export function RepoActivity() {
                     <span className="aac-truncate text-[13px] font-medium text-ink">{c.message}</span>
                     {c.isPrDraft && (
                       <span className="inline-flex shrink-0 items-center gap-1 rounded border border-cursor/40 bg-cursor/10 px-1.5 py-0.5 text-[10px] font-medium text-cursor">
-                        <GitPullRequestDraft size={10} /> PR draft
+                        <GitPullRequestDraft size={10} /> {t("PR draft")}
                       </span>
                     )}
                   </div>
@@ -145,11 +147,11 @@ export function RepoActivity() {
                     <span className="aac-truncate">{c.branch}</span>
                     <span className="text-safe">+{c.linesAdded}</span>
                     <span className="text-danger">−{c.linesDeleted}</span>
-                    <span>{c.filesChanged} files</span>
+                    <span>{t("{n} files", { n: c.filesChanged })}</span>
                     {c.testsFailed ? (
-                      <span className="text-danger">{c.testsFailed} tests failing</span>
+                      <span className="text-danger">{t("{n} tests failing", { n: c.testsFailed })}</span>
                     ) : (
-                      <span className="text-safe">{c.testsPassed} tests pass</span>
+                      <span className="text-safe">{t("{n} tests pass", { n: c.testsPassed ?? 0 })}</span>
                     )}
                     <span className="aac-tnum">{formatClock(c.timestamp)}</span>
                   </div>
@@ -159,17 +161,17 @@ export function RepoActivity() {
           </div>
         </Panel>
 
-        <Panel title="Selected File" icon={FileCode2} subtitle={selected?.filePath}>
+        <Panel title={t("Selected File")} icon={FileCode2} subtitle={selected?.filePath}>
           {selected ? (
             <div className="space-y-3">
               <div className="grid grid-cols-3 gap-2">
-                <MiniStat label="Churn" value={String(selected.churn)} />
-                <MiniStat label="Edits" value={String(selected.edits)} />
+                <MiniStat label={t("Churn")} value={String(selected.churn)} />
+                <MiniStat label={t("Edits")} value={String(selected.edits)} />
                 <MiniStat label="+/−" value={`${selected.linesAdded}/${selected.linesDeleted}`} />
               </div>
               <DiffViewer file={selected.filePath} lines={SAMPLE_DIFF} added={selected.linesAdded} deleted={selected.linesDeleted} />
               <div>
-                <div className="mb-1 text-[11px] font-medium text-ink-3">Related sessions</div>
+                <div className="mb-1 text-[11px] font-medium text-ink-3">{t("Related sessions")}</div>
                 <div className="space-y-1">
                   {relatedSessions.length ? (
                     relatedSessions.map((s) => (
@@ -185,37 +187,38 @@ export function RepoActivity() {
                       </button>
                     ))
                   ) : (
-                    <p className="text-[12px] text-ink-3">No linked sessions.</p>
+                    <p className="text-[12px] text-ink-3">{t("No linked sessions.")}</p>
                   )}
                 </div>
               </div>
               <div className="rounded-md border border-line bg-surface-2 px-2.5 py-2">
                 <div className="flex items-center gap-1.5 text-[11px] font-medium text-ink-2">
-                  <FlaskConical size={12} className="text-safe" /> Test impact
+                  <FlaskConical size={12} className="text-safe" /> {t("Test impact")}
                 </div>
                 <p className="mt-0.5 text-[11px] text-ink-3">
-                  Touched by {selected.agents.map((a) => AGENT_LABELS[a]).join(", ")}. Covered by
-                  tests/agent.test.ts — last run green.
+                  {t("Touched by {agents}. Covered by tests/agent.test.ts — last run green.", {
+                    agents: selected.agents.map((a) => AGENT_LABELS[a]).join(", "),
+                  })}
                 </p>
               </div>
             </div>
           ) : (
-            <EmptyState icon={FileCode2} title="No file selected" />
+            <EmptyState icon={FileCode2} title={t("No file selected")} />
           )}
         </Panel>
       </div>
 
       {/* Heatmap + contribution */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Panel title="Contribution Heatmap" subtitle="Agent edits over 18 weeks" className="xl:col-span-2">
+        <Panel title={t("Contribution Heatmap")} subtitle={t("Agent edits over 18 weeks")} className="xl:col-span-2">
           <div className="space-y-2">
             <HeatmapGrid cells={ra.heatmap} cellSize={12} />
             <HeatmapLegend />
           </div>
         </Panel>
-        <Panel title="Agent Contribution" icon={PieIcon} subtitle="Share of churn">
+        <Panel title={t("Agent Contribution")} icon={PieIcon} subtitle={t("Share of churn")}>
           <div className="grid grid-cols-2 items-center gap-3">
-            <Donut data={contribData} height={150} centerLabel={formatNumber(ra.churn)} centerSub="churn" />
+            <Donut data={contribData} height={150} centerLabel={formatNumber(ra.churn)} centerSub={t("churn")} />
             <div className="space-y-2">
               {ra.contribution.map((c) => (
                 <div key={c.agent} className="space-y-1">

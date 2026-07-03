@@ -26,6 +26,7 @@ import { RiskBadge, CategoryChip } from "../components/RiskBadge";
 import { CommandBlock } from "../components/CommandBlock";
 import { DiffViewer, type DiffLine } from "../components/DiffViewer";
 import { cn } from "../lib/cn";
+import { useT } from "../lib/i18n";
 import {
   AGENT_COLOR_VAR,
   formatClock,
@@ -42,6 +43,7 @@ const TRACK_H = 40;
 const LABEL_GUTTER = 96;
 
 export function SessionReplay() {
+  const t = useT();
   const navigate = useNavigate();
   const { sessionId } = useParams();
   const dataset = useAppStore((s) => s.dataset);
@@ -59,12 +61,12 @@ export function SessionReplay() {
   const selected = events.find((e) => e.id === selectedId) ?? events[0] ?? null;
 
   const tracks: { key: TrackKey; label: string; icon: typeof User; color: string }[] = [
-    { key: "user", label: "User", icon: User, color: "var(--color-ink-2)" },
+    { key: "user", label: t("User"), icon: User, color: "var(--color-ink-2)" },
     { key: "agent", label: AGENT_LABELS[session.agent], icon: Zap, color: AGENT_COLOR_VAR[session.agent] },
-    { key: "shell", label: "Shell", icon: TerminalSquare, color: "var(--color-warn)" },
-    { key: "files", label: "Files", icon: FileCode2, color: "var(--color-info)" },
-    { key: "tests", label: "Tests", icon: FlaskConical, color: "var(--color-safe)" },
-    { key: "git", label: "Git", icon: GitBranch, color: "var(--color-cursor)" },
+    { key: "shell", label: t("Shell"), icon: TerminalSquare, color: "var(--color-warn)" },
+    { key: "files", label: t("Files"), icon: FileCode2, color: "var(--color-info)" },
+    { key: "tests", label: t("Tests"), icon: FlaskConical, color: "var(--color-safe)" },
+    { key: "git", label: t("Git"), icon: GitBranch, color: "var(--color-cursor)" },
   ];
 
   const start = new Date(session.startedAt).getTime();
@@ -115,8 +117,8 @@ export function SessionReplay() {
         </div>
         <div className="flex shrink-0 items-center gap-2 text-[11px] text-ink-3">
           <Pill>{durationBetween(session.startedAt, session.endedAt)}</Pill>
-          <Pill>{session.filesChanged ?? 0} files</Pill>
-          <Pill>{formatTokens(session.totalTokens ?? 0)} tok</Pill>
+          <Pill>{t("{n} files", { n: session.filesChanged ?? 0 })}</Pill>
+          <Pill>{t("{n} tok", { n: formatTokens(session.totalTokens ?? 0) })}</Pill>
           <Pill>{formatUsd(session.estimatedCostUsd ?? 0)}</Pill>
           {session.riskCount ? (
             <Pill color="var(--color-warn)">
@@ -130,8 +132,8 @@ export function SessionReplay() {
         {/* Timeline */}
         <div className="flex min-w-0 flex-1 flex-col">
           {events.length === 0 ? (
-            <EmptyState icon={Play} title="No detailed events for this session">
-              Pick a session with a recorded timeline (e.g. “Implement session orchestration”).
+            <EmptyState icon={Play} title={t("No detailed events for this session")}>
+              {t("Pick a session with a recorded timeline (e.g. “Implement session orchestration”).")}
             </EmptyState>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto p-4">
@@ -160,7 +162,7 @@ export function SessionReplay() {
                       className="absolute top-0 flex h-6 flex-col items-center"
                       style={{ left: m * PX_PER_MIN + LABEL_GUTTER }}
                     >
-                      <span className="aac-tnum text-[10px] text-ink-3">+{m}m</span>
+                      <span className="aac-tnum text-[10px] text-ink-3">{t("+{m}m", { m })}</span>
                       <span className="mt-0.5 h-2 w-px bg-line" />
                     </div>
                   ))}
@@ -224,8 +226,8 @@ export function SessionReplay() {
           {selected ? (
             <EventInspector event={selected} session={session} />
           ) : (
-            <EmptyState icon={MessageSquare} title="Select an event">
-              Click any event on the timeline to inspect its input, output, diff, and risk.
+            <EmptyState icon={MessageSquare} title={t("Select an event")}>
+              {t("Click any event on the timeline to inspect its input, output, diff, and risk.")}
             </EmptyState>
           )}
         </aside>
@@ -336,6 +338,7 @@ function PlaybackBar({
   onSelect: (id: string) => void;
   clock: string;
 }) {
+  const t = useT();
   const idx = Math.max(0, events.findIndex((e) => e.id === selectedId));
   const step = (d: number) => {
     const n = Math.min(events.length - 1, Math.max(0, idx + d));
@@ -344,8 +347,8 @@ function PlaybackBar({
   return (
     <div className="flex items-center gap-3 border-t border-line bg-surface px-4 py-2">
       <div className="flex items-center gap-1">
-        <CtrlButton onClick={() => step(-1)} label="Prev">‹</CtrlButton>
-        <CtrlButton onClick={() => step(1)} label="Next" accent>
+        <CtrlButton onClick={() => step(-1)} label={t("Prev")}>‹</CtrlButton>
+        <CtrlButton onClick={() => step(1)} label={t("Next")} accent>
           <Play size={13} />
         </CtrlButton>
       </div>
@@ -450,6 +453,7 @@ function EventInspector({
   event: NormalizedAgentEvent;
   session: AgentSession;
 }) {
+  const t = useT();
   // Sample diffs are illustrative demo content only — never show them over live
   // data (we don't reconstruct real file diffs from hook events).
   const isDemo = useAppStore((s) => s.source) === "demo";
@@ -467,24 +471,24 @@ function EventInspector({
       </div>
 
       <div className="border-b border-line px-4 py-2">
-        <KeyValue label="Timestamp" mono>{formatClock(event.timestamp)}</KeyValue>
+        <KeyValue label={t("Timestamp")} mono>{formatClock(event.timestamp)}</KeyValue>
         {event.metrics?.durationMs != null && (
-          <KeyValue label="Duration" mono>{formatDuration(event.metrics.durationMs)}</KeyValue>
+          <KeyValue label={t("Duration")} mono>{formatDuration(event.metrics.durationMs)}</KeyValue>
         )}
         {event.metrics?.exitCode != null && (
-          <KeyValue label="Exit code" mono>{event.metrics.exitCode}</KeyValue>
+          <KeyValue label={t("Exit code")} mono>{event.metrics.exitCode}</KeyValue>
         )}
         {event.links?.commitSha && (
-          <KeyValue label="Commit" mono>{event.links.commitSha}</KeyValue>
+          <KeyValue label={t("Commit")} mono>{event.links.commitSha}</KeyValue>
         )}
         {event.links?.branch && (
-          <KeyValue label="Branch" mono>{event.links.branch}</KeyValue>
+          <KeyValue label={t("Branch")} mono>{event.links.branch}</KeyValue>
         )}
       </div>
 
       {command && (
         <div className="border-b border-line px-4 py-3">
-          <div className="mb-1.5 text-[11px] font-medium text-ink-3">Command (redacted, not executed)</div>
+          <div className="mb-1.5 text-[11px] font-medium text-ink-3">{t("Command (redacted, not executed)")}</div>
           <CommandBlock command={command} danger={(event.risk?.[0]?.severity ?? "low") !== "low"} />
         </div>
       )}
@@ -492,7 +496,7 @@ function EventInspector({
       {diff && (
         <div className="border-b border-line px-4 py-3">
           <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-ink-3">
-            <Clock size={11} /> Proposed change
+            <Clock size={11} /> {t("Proposed change")}
           </div>
           <DiffViewer file={event.links!.files![0]} lines={diff.lines} added={diff.added} deleted={diff.deleted} />
         </div>
@@ -507,12 +511,12 @@ function EventInspector({
           <p className="text-[12px] leading-relaxed text-ink-2">{r.description}</p>
           {r.redactedEvidence && (
             <div className="mt-2">
-              <CommandBlock label="Evidence" command={r.redactedEvidence} danger />
+              <CommandBlock label={t("Evidence")} command={r.redactedEvidence} danger />
             </div>
           )}
           <div className="mt-2 rounded-md border border-safe/30 bg-safe/5 px-2.5 py-2">
             <div className="text-[10px] font-semibold uppercase tracking-wide text-safe">
-              Recommended action
+              {t("Recommended action")}
             </div>
             <p className="mt-0.5 text-[12px] leading-relaxed text-ink-2">{r.recommendedAction}</p>
           </div>
@@ -520,8 +524,8 @@ function EventInspector({
       ))}
 
       <div className="px-4 py-3">
-        <KeyValue label="Session">{session.summary}</KeyValue>
-        <KeyValue label="Repo" mono>{session.repoPath}</KeyValue>
+        <KeyValue label={t("Session")}>{session.summary}</KeyValue>
+        <KeyValue label={t("Repo")} mono>{session.repoPath}</KeyValue>
       </div>
     </div>
   );

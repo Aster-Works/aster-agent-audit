@@ -13,8 +13,10 @@ import {
   formatUsd,
   formatNumber,
 } from "../lib/format";
+import { useT } from "../lib/i18n";
 
 export function Agents() {
+  const t = useT();
   const dataset = useDataset();
   const { overview, sessions } = dataset;
 
@@ -27,12 +29,12 @@ export function Agents() {
       </div>
 
       {/* Comparison table */}
-      <Panel title="Agent Comparison" icon={Layers} subtitle="Side-by-side this range" noBodyPadding>
+      <Panel title={t("Agent Comparison")} icon={Layers} subtitle={t("Side-by-side this range")} noBodyPadding>
         <div className="overflow-x-auto">
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-line text-left text-[11px] uppercase tracking-wide text-ink-3">
-                <th className="px-4 py-2 font-medium">Metric</th>
+                <th className="px-4 py-2 font-medium">{t("Metric")}</th>
                 {overview.perAgent.map((a) => (
                   <th key={a.agent} className="px-4 py-2 font-medium">
                     <AgentBadge agent={a.agent} />
@@ -41,18 +43,18 @@ export function Agents() {
               </tr>
             </thead>
             <tbody className="aac-tnum">
-              <Row label="Sessions" values={overview.perAgent.map((a) => String(a.sessions))} />
-              <Row label="Tokens" values={overview.perAgent.map((a) => formatTokens(a.tokens))} />
-              <Row label="Cost" values={overview.perAgent.map((a) => formatUsd(a.costUsd))} />
-              <Row label="Tool calls" values={overview.perAgent.map((a) => formatNumber(a.toolCalls))} />
-              <Row label="Files changed" values={overview.perAgent.map((a) => String(a.filesChanged))} />
-              <Row label="Commits" values={overview.perAgent.map((a) => String(a.commits))} />
+              <Row label={t("Sessions")} values={overview.perAgent.map((a) => String(a.sessions))} />
+              <Row label={t("Tokens")} values={overview.perAgent.map((a) => formatTokens(a.tokens))} />
+              <Row label={t("Cost")} values={overview.perAgent.map((a) => formatUsd(a.costUsd))} />
+              <Row label={t("Tool calls")} values={overview.perAgent.map((a) => formatNumber(a.toolCalls))} />
+              <Row label={t("Files changed")} values={overview.perAgent.map((a) => String(a.filesChanged))} />
+              <Row label={t("Commits")} values={overview.perAgent.map((a) => String(a.commits))} />
               <Row
-                label="Tests"
-                values={overview.perAgent.map((a) => `${a.testsPassed} / ${a.testsFailed} fail`)}
+                label={t("Tests")}
+                values={overview.perAgent.map((a) => t("{passed} / {failed} fail", { passed: a.testsPassed, failed: a.testsFailed }))}
               />
-              <Row label="Risk findings" values={overview.perAgent.map((a) => String(a.riskFindings))} />
-              <Row label="Success rate" values={overview.perAgent.map((a) => formatPct(a.successRate))} />
+              <Row label={t("Risk findings")} values={overview.perAgent.map((a) => String(a.riskFindings))} />
+              <Row label={t("Success rate")} values={overview.perAgent.map((a) => formatPct(a.successRate))} />
             </tbody>
           </table>
         </div>
@@ -81,6 +83,7 @@ function AgentCard({
   rollup: AgentRollup;
   sessions: ReturnType<typeof useAppStore.getState>["dataset"]["sessions"];
 }) {
+  const t = useT();
   const color = AGENT_COLOR_VAR[rollup.agent];
   const own = sessions.filter((s) => s.agent === rollup.agent).slice(0, 5);
   return (
@@ -88,24 +91,24 @@ function AgentCard({
       title={<AgentBadge agent={rollup.agent} size="md" />}
       action={
         <span className="inline-flex items-center gap-1 text-[11px] text-safe">
-          <CheckCircle2 size={13} /> Hook ready
+          <CheckCircle2 size={13} /> {t("Hook ready")}
         </span>
       }
     >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Tile icon={Layers} label="Sessions" value={String(rollup.sessions)} color={color} />
-        <Tile icon={TerminalSquare} label="Tool calls" value={formatNumber(rollup.toolCalls)} color={color} />
-        <Tile icon={GitCommitHorizontal} label="Commits" value={String(rollup.commits)} color={color} />
-        <Tile icon={ShieldAlert} label="Risks" value={String(rollup.riskFindings)} color={color} />
+        <Tile icon={Layers} label={t("Sessions")} value={String(rollup.sessions)} color={color} />
+        <Tile icon={TerminalSquare} label={t("Tool calls")} value={formatNumber(rollup.toolCalls)} color={color} />
+        <Tile icon={GitCommitHorizontal} label={t("Commits")} value={String(rollup.commits)} color={color} />
+        <Tile icon={ShieldAlert} label={t("Risks")} value={String(rollup.riskFindings)} color={color} />
       </div>
 
       <div className="mt-3 flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="mb-1 flex items-center justify-between text-[11px] text-ink-3">
-            <span>Activity</span>
+            <span>{t("Activity")}</span>
             <span className="inline-flex items-center gap-1">
               <FlaskConical size={11} className="text-safe" />
-              {rollup.testsPassed} tests · {formatPct(rollup.successRate)} success
+              {t("{count} tests · {pct} success", { count: rollup.testsPassed, pct: formatPct(rollup.successRate) })}
             </span>
           </div>
           <Sparkline data={rollup.spark} color={color} height={32} />
