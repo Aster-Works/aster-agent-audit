@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Plug,
   HardDrive,
@@ -8,16 +9,73 @@ import {
   CheckCircle2,
   CircleAlert,
   Lock,
+  Timer,
+  Coins,
+  Save,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import { AGENT_LABELS } from "@core/types";
 import { useAppStore } from "../app/store";
-import { Panel, KeyValue, Pill } from "../components/ui";
+import { Panel, KeyValue, Pill, EmptyState } from "../components/ui";
 import { AgentBadge } from "../components/AgentBadge";
 import { CommandBlock } from "../components/CommandBlock";
 
+type RateTuple = [number, number, number, number];
+type SettingsData = {
+  status: { mode: string; port: number; dbPath: string };
+  dbPath: string;
+  counts: { sessions: number; events: number; risk: number; fileChanges: number };
+  retentionDays: number;
+  pricing: Record<string, RateTuple>;
+  pricingFamilies: string[];
+  agents: { agent: "claude-code" | "codex"; label: string; present: boolean; installed: boolean; mechanism: "hook" | "auto"; configPath?: string }[];
+  diagnostics: { label: string; ok: boolean; detail: string }[];
+  rules: { ruleId: string; category: string; severity: string; title: string }[];
+};
+
+function useSettings(live: boolean) {
+  const [data, setData] = useState<SettingsData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!live) {
+      setData(null);
+      return;
+    }
+    let ok = true;
+    fetch("/api/settings", { headers: { accept: "application/json" } })
+      .then((r) => r.json())
+      .then((d) => ok && setData(d as SettingsData))
+      .catch((e) => ok && setError(String(e)));
+    return () => {
+      ok = false;
+    };
+  }, [live]);
+
+  const save = useCallback(async (patch: { retentionDays?: number; pricing?: Record<string, RateTuple> }) => {
+    setSaving(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      setData((await r.json()) as SettingsData);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+
+  return { data, error, saving, save };
+}
+
 export function Settings() {
+  const source = useAppStore((s) => s.source);
   const status = useAppStore((s) => s.dataset.status);
+  const live = source === "live";
+  const { data, saving, save } = useSettings(live);
 
   return (
     <div className="space-y-4 p-4">
@@ -31,139 +89,373 @@ export function Settings() {
             No account. No cloud. Your agent history stays on your machine.
           </div>
           <div className="text-[11px] text-ink-3">
-            Data is stored locally in SQLite. Secrets are redacted before storage. Nothing is
-            uploaded by default.
+            Data is stored locally in SQLite. Secrets are redacted before storage. Nothing is uploaded.
           </div>
         </div>
+        {live ? (
+          <Pill color="var(--color-safe)" className="ml-auto shrink-0">
+            <CheckCircle2 size={11} /> Live collector
+          </Pill>
+        ) : (
+          <Pill color="var(--color-warn)" className="ml-auto shrink-0">
+            <CircleAlert size={11} /> Demo mode
+          </Pill>
+        )}
       </div>
 
+      {!live && (
+        <div className="aac-card px-4 py-3 text-[12px] text-ink-2">
+          You’re viewing demo data. Start the collector to see and edit real settings:
+          <div className="mt-2 max-w-sm">
+            <CommandBlock command="aster-agent dashboard" />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        {/* Agent integrations */}
-        <Panel title="Agent Integrations" icon={Plug} subtitle="Hook installation status">
+        {/* Agent integrations — real status */}
+        <Panel title="Agent Integrations" icon={Plug} subtitle="How each agent’s activity is collected">
           <div className="space-y-2">
-            {(["claude-code", "codex"] as const).map((agent) => (
-              <div key={agent} className="flex items-center justify-between rounded-md border border-line bg-surface-2 px-3 py-2.5">
-                <AgentBadge agent={agent} size="md" />
-                <div className="flex items-center gap-2">
-                  <Pill color="var(--color-warn)">
-                    <CircleAlert size={11} /> Not installed
-                  </Pill>
-                  <span className="text-[11px] text-ink-3">demo mode</span>
+            {(data?.agents ?? fallbackAgents()).map((a) => (
+              <div key={a.agent} className="rounded-md border border-line bg-surface-2 px-3 py-2.5">
+                <div className="flex items-center justify-between">
+                  <AgentBadge agent={a.agent} size="md" />
+                  <AgentStatusPill a={a} live={live} />
                 </div>
+                {a.configPath && (
+                  <div className="mt-1 truncate font-mono text-[10px] text-ink-3" title={a.configPath}>
+                    {a.configPath}
+                  </div>
+                )}
               </div>
             ))}
             <div className="rounded-md border border-line bg-bg px-3 py-2.5">
               <div className="mb-1.5 text-[11px] text-ink-3">
-                Install hooks to collect real {AGENT_LABELS["claude-code"]} / {AGENT_LABELS.codex} activity (Phase 4):
+                Claude Code uses a local hook; Codex is read automatically from its session logs — no config change.
               </div>
               <CommandBlock command="aster-agent init" />
               <p className="mt-1.5 text-[11px] leading-relaxed text-ink-3">
-                Existing hook config is backed up first. Hooks only POST to{" "}
-                <span className="font-mono">127.0.0.1:{status.port}</span> and never block your
-                workflow.
+                Existing config is backed up first. The hook only POSTs to{" "}
+                <span className="font-mono">127.0.0.1:{data?.status.port ?? status.port}</span> and never blocks your workflow.
               </p>
             </div>
           </div>
         </Panel>
 
+        {/* Data retention — editable */}
+        <Panel title="Data Retention" icon={Timer} subtitle="How long history is kept before pruning">
+          {live && data ? (
+            <RetentionEditor value={data.retentionDays} saving={saving} onSave={(d) => save({ retentionDays: d })} />
+          ) : (
+            <EmptyState icon={Timer} title="Start the collector to edit retention" />
+          )}
+        </Panel>
+
+        {/* Cost model — editable pricing */}
+        <Panel title="Cost Model" icon={Coins} subtitle="Estimate rates — USD per 1M tokens" className="xl:col-span-2">
+          {live && data ? (
+            <PricingEditor
+              families={data.pricingFamilies}
+              pricing={data.pricing}
+              saving={saving}
+              onSave={(p) => save({ pricing: p })}
+            />
+          ) : (
+            <EmptyState icon={Coins} title="Start the collector to edit rates" />
+          )}
+        </Panel>
+
         {/* Local storage */}
         <Panel title="Local Storage" icon={HardDrive} subtitle="Where your data lives">
           <div className="aac-inset rounded-md px-3 py-1.5">
-            <KeyValue label="Database" mono>{status.dbPath}</KeyValue>
+            <KeyValue label="Database" mono>{data?.dbPath ?? status.dbPath}</KeyValue>
             <KeyValue label="Config dir" mono>~/.aster-agent-console/</KeyValue>
             <KeyValue label="Spool" mono>~/.aster-agent-console/spool/</KeyValue>
             <KeyValue label="Backups" mono>~/.aster-agent-console/backups/</KeyValue>
+            {data && (
+              <KeyValue label="Stored">
+                {data.counts.sessions} sessions · {data.counts.events} events · {data.counts.fileChanges} file changes
+              </KeyValue>
+            )}
             <KeyValue label="Mode">
-              <span className="capitalize">{status.mode}</span>
+              <span className="capitalize">{data?.status.mode ?? status.mode}</span>
             </KeyValue>
           </div>
         </Panel>
 
+        {/* Export — working in live mode */}
+        <Panel title="Export" icon={Download} subtitle="Manual & local — nothing leaves unless you click">
+          <ExportButtons live={live} />
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
+            Export is on-demand and downloads to your machine. Cloud sync is not part of this tool.
+          </p>
+        </Panel>
+
         {/* Redaction policy */}
-        <Panel title="Redaction Policy" icon={EyeOff} subtitle="Secrets are stripped before storage">
+        <Panel title="Redaction Policy" icon={EyeOff} subtitle="Always on — secrets are stripped before storage">
           <div className="grid grid-cols-2 gap-1.5">
-            {[
-              "API keys (sk-…)",
-              "GitHub tokens (ghp_…)",
-              "Supabase keys",
-              "JWTs",
-              "Private keys",
-              ".env values",
-              "AWS keys",
-              "URL credentials",
-            ].map((k) => (
+            {["API keys (sk-…)", "GitHub tokens (ghp_…)", "Supabase / JWT", "Private keys", ".env values", "Bearer tokens", "AWS keys", "URL credentials"].map((k) => (
               <span key={k} className="flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2 py-1.5 text-[11px] text-ink-2">
                 <CheckCircle2 size={12} className="text-safe" /> {k}
               </span>
             ))}
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
-            Raw secret values are never persisted — only a redacted replacement, a fingerprint, and
-            finding metadata.
+            Raw secret values are never persisted — only a redacted replacement, a fingerprint, and finding metadata.
           </p>
         </Panel>
 
-        {/* Risk policy */}
-        <Panel title="Risk Policy" icon={ShieldAlert} subtitle="Active detection rules">
-          <div className="space-y-1.5 text-[12px]">
-            <Rule id="AAC-SHELL-002" text="Recursive delete / rm -rf on interpolated paths" />
-            <Rule id="AAC-GIT-014" text="Force push to protected branch" />
-            <Rule id="AAC-SECRET-001" text="API key in tool input" />
-            <Rule id="AAC-MCP-007" text="MCP server with broad exec/network capability" />
-            <Rule id="AAC-NET-003" text="Outbound network during sensitive edit" />
-            <Rule id="AAC-FILE-005" text="Write outside repository root" />
-          </div>
+        {/* Risk policy — real active rules */}
+        <Panel
+          title="Risk Policy"
+          icon={ShieldAlert}
+          subtitle={data ? `${data.rules.length} active detection rules` : "Active detection rules"}
+          className="xl:col-span-2"
+        >
+          {data ? (
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {data.rules.map((r) => (
+                <Rule key={r.ruleId} id={r.ruleId} text={r.title} severity={r.severity} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={ShieldAlert} title="Start the collector to list active rules" />
+          )}
         </Panel>
 
-        {/* Export */}
-        <Panel title="Export" icon={Download} subtitle="Opt-in only — nothing leaves by default">
-          <div className="flex flex-wrap gap-2">
-            <DisabledButton icon={Download} label="Export work report (JSON)" />
-            <DisabledButton icon={Download} label="Export findings (CSV)" />
-          </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
-            Export is manual and local. Cloud sync remains opt-in and is not part of the MVP.
-          </p>
-        </Panel>
-
-        {/* Diagnostics */}
-        <Panel title="Diagnostics" icon={Stethoscope} subtitle="aster-agent doctor (Phase 3)">
-          <div className="space-y-1.5">
-            <Diag ok label="Node version" detail="v20.15.1" />
-            <Diag ok label="Config directory writable" detail="~/.aster-agent-console" />
-            <Diag ok={false} label="Local collector" detail={`offline · 127.0.0.1:${status.port}`} />
-            <Diag ok label="Database readable" detail="agent-console.db" />
-            <Diag ok={false} label="Hooks installed" detail="0 of 2 agents" />
-          </div>
-          <div className="mt-2">
-            <CommandBlock command="aster-agent doctor" />
-          </div>
+        {/* Diagnostics — real */}
+        <Panel title="Diagnostics" icon={Stethoscope} subtitle="Live environment checks" className="xl:col-span-2">
+          {data ? (
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+              {data.diagnostics.map((d) => (
+                <Diag key={d.label} ok={d.ok} label={d.label} detail={d.detail} />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <EmptyState icon={Stethoscope} title="Start the collector for live diagnostics" />
+              <CommandBlock command="aster-agent doctor" />
+            </div>
+          )}
         </Panel>
       </div>
     </div>
   );
 }
 
-function Rule({ id, text }: { id: string; text: string }) {
+function fallbackAgents(): SettingsData["agents"] {
+  return [
+    { agent: "claude-code", label: "Claude Code", present: false, installed: false, mechanism: "hook" },
+    { agent: "codex", label: "Codex", present: false, installed: false, mechanism: "auto" },
+  ];
+}
+
+function AgentStatusPill({ a, live }: { a: SettingsData["agents"][number]; live: boolean }) {
+  if (!live) return <span className="text-[11px] text-ink-3">demo</span>;
+  if (a.installed) {
+    return (
+      <Pill color="var(--color-safe)">
+        <CheckCircle2 size={11} /> {a.mechanism === "auto" ? "Auto — session logs" : "Collecting (hook)"}
+      </Pill>
+    );
+  }
   return (
-    <div className="flex items-center gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5">
-      <CheckCircle2 size={13} className="shrink-0 text-safe" />
-      <span className="aac-truncate flex-1 text-ink-2">{text}</span>
-      <span className="shrink-0 font-mono text-[10px] text-ink-3">{id}</span>
+    <Pill color="var(--color-warn)">
+      <CircleAlert size={11} /> {a.mechanism === "auto" ? "No Codex logs yet" : "Hook not installed"}
+    </Pill>
+  );
+}
+
+function RetentionEditor({ value, saving, onSave }: { value: number; saving: boolean; onSave: (d: number) => void }) {
+  const [v, setV] = useState(String(value));
+  useEffect(() => setV(String(value)), [value]);
+  const parsed = Math.max(0, Math.round(Number(v) || 0));
+  const dirty = parsed !== value;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-end gap-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-[11px] text-ink-3">Keep history for</span>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="number"
+              min={0}
+              max={3650}
+              value={v}
+              onChange={(e) => setV(e.target.value)}
+              className="aac-tnum h-8 w-24 rounded-md border border-line bg-bg px-2 text-[13px] text-ink focus:border-claude/40 focus:outline-none focus:ring-1 focus:ring-claude/40"
+            />
+            <span className="text-[12px] text-ink-2">days</span>
+          </div>
+        </label>
+        <button
+          type="button"
+          disabled={!dirty || saving}
+          onClick={() => onSave(parsed)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-claude/40 bg-claude/10 px-3 text-[12px] font-medium text-claude disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Save size={13} /> {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+      <p className="text-[11px] leading-relaxed text-ink-3">
+        Older sessions, events and findings are pruned on start and every 12h. Set to <span className="font-mono">0</span> to keep everything.
+      </p>
     </div>
   );
 }
 
-function DisabledButton({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+const RATE_LABELS = ["input", "output", "cache read", "cache write"] as const;
+
+function PricingEditor({
+  families,
+  pricing,
+  saving,
+  onSave,
+}: {
+  families: string[];
+  pricing: Record<string, RateTuple>;
+  saving: boolean;
+  onSave: (p: Record<string, RateTuple>) => void;
+}) {
+  const [table, setTable] = useState<Record<string, RateTuple>>(pricing);
+  useEffect(() => setTable(pricing), [pricing]);
+  const dirty = useMemo(() => JSON.stringify(table) !== JSON.stringify(pricing), [table, pricing]);
+
+  const setCell = (fam: string, i: number, val: string) => {
+    const n = Number(val);
+    setTable((prev) => {
+      const row = [...(prev[fam] ?? [0, 0, 0, 0])] as RateTuple;
+      // Empty → 0 (an explicit, visible choice); a negative or non-numeric entry
+      // is rejected (keep the prior value) rather than silently becoming a 0 rate.
+      row[i] = val.trim() === "" ? 0 : Number.isFinite(n) && n >= 0 ? n : row[i];
+      return { ...prev, [fam]: row };
+    });
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[520px] border-collapse text-[12px]">
+          <thead>
+            <tr className="text-[11px] text-ink-3">
+              <th className="px-2 py-1 text-left font-medium">Model family</th>
+              {RATE_LABELS.map((l) => (
+                <th key={l} className="px-2 py-1 text-right font-medium">{l}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {families.map((fam) => (
+              <tr key={fam} className="border-t border-line">
+                <td className="px-2 py-1.5 font-mono text-ink-2">{fam}</td>
+                {[0, 1, 2, 3].map((i) => (
+                  <td key={i} className="px-2 py-1.5 text-right">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={table[fam]?.[i] ?? 0}
+                      onChange={(e) => setCell(fam, i, e.target.value)}
+                      className="aac-tnum h-7 w-20 rounded-md border border-line bg-bg px-1.5 text-right text-[12px] text-ink focus:border-claude/40 focus:outline-none focus:ring-1 focus:ring-claude/40"
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={!dirty || saving}
+          onClick={() => onSave(table)}
+          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-claude/40 bg-claude/10 px-3 text-[12px] font-medium text-claude disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Save size={13} /> {saving ? "Saving…" : "Save rates"}
+        </button>
+        <span className="text-[11px] text-ink-3">USD per 1M tokens. Cost is an estimate; tokens are exact.</span>
+      </div>
+    </div>
+  );
+}
+
+function ExportButtons({ live }: { live: boolean }) {
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const download = async (kind: "json" | "csv") => {
+    setBusy(kind);
+    try {
+      if (kind === "json") {
+        const d = await (await fetch("/api/dataset")).json();
+        triggerDownload(new Blob([JSON.stringify(d, null, 2)], { type: "application/json" }), "aster-agent-report.json");
+      } else {
+        const rows = (await (await fetch("/api/risk-findings")).json()) as Record<string, unknown>[];
+        triggerDownload(new Blob([toCsv(rows)], { type: "text/csv" }), "aster-agent-findings.csv");
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      <ExportButton disabled={!live} busy={busy === "json"} onClick={() => download("json")} label="Export work report (JSON)" />
+      <ExportButton disabled={!live} busy={busy === "csv"} onClick={() => download("csv")} label="Export findings (CSV)" />
+    </div>
+  );
+}
+
+function ExportButton({ label, disabled, busy, onClick }: { label: string; disabled: boolean; busy: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
-      className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] text-ink-3"
-      disabled
-      title="Available once events are collected"
+      onClick={onClick}
+      disabled={disabled || busy}
+      title={disabled ? "Available in live mode" : undefined}
+      className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] text-ink-2 enabled:hover:border-claude/40 disabled:cursor-not-allowed disabled:text-ink-3"
     >
-      <Icon size={13} /> {label}
+      <Download size={13} /> {busy ? "Preparing…" : label}
     </button>
+  );
+}
+
+function triggerDownload(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function toCsv(rows: Record<string, unknown>[]): string {
+  if (!rows.length) return "ruleId,severity,category,title\n";
+  const cols = ["ruleId", "severity", "category", "title", "agent", "sessionId", "timestamp"];
+  const esc = (v: unknown) => {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  return [cols.join(","), ...rows.map((r) => cols.map((c) => esc(r[c])).join(","))].join("\n") + "\n";
+}
+
+const SEV_COLOR: Record<string, string> = {
+  critical: "var(--color-danger)",
+  high: "var(--color-danger)",
+  medium: "var(--color-warn)",
+  low: "var(--color-ink-3)",
+  info: "var(--color-ink-3)",
+};
+
+function Rule({ id, text, severity }: { id: string; text: string; severity: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px]">
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: SEV_COLOR[severity] ?? "var(--color-ink-3)" }} />
+      <span className="aac-truncate flex-1 text-ink-2">{text}</span>
+      <span className="shrink-0 font-mono text-[10px] text-ink-3">{id}</span>
+    </div>
   );
 }
 

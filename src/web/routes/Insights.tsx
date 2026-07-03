@@ -5,12 +5,27 @@ import {
   ShieldAlert,
   Cpu,
   Recycle,
+  Timer,
+  AlertTriangle,
+  FileType2,
+  CalendarDays,
+  Activity,
 } from "lucide-react";
 import { useDataset } from "../data/useDataset";
 import { buildInsights, type Insights as InsightsData } from "../lib/insights";
 import { Panel, EmptyState } from "../components/ui";
 import { Donut } from "../components/charts";
 import { AGENT_COLOR_VAR, formatNumber, formatPct, formatTokens, formatUsd } from "../lib/format";
+
+/** Human-readable duration: 120ms · 1.8s · 2m 05s. */
+function formatDuration(ms: number | null): string {
+  if (ms == null) return "—";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s < 10 ? s.toFixed(1) : Math.round(s)}s`;
+  const m = Math.floor(s / 60);
+  return `${m}m ${String(Math.round(s % 60)).padStart(2, "0")}s`;
+}
 
 const TOKEN_COLORS = {
   uncachedInput: "var(--color-claude)",
@@ -67,6 +82,41 @@ export function Insights() {
           {ins.models.length ? <ModelCost ins={ins} /> : <EmptyState icon={Cpu} title="No model data yet" />}
         </Panel>
       </div>
+
+      {/* Row 4: latency + command failures */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Panel
+          title="Tool Latency"
+          icon={Timer}
+          iconColor="var(--color-codex)"
+          subtitle="Where your agents actually spend time"
+          className="xl:col-span-2"
+        >
+          <ToolLatency ins={ins} />
+        </Panel>
+        <Panel title="Command Failures" icon={AlertTriangle} iconColor="var(--color-warn)" subtitle="Share of commands that exit non-zero">
+          <CommandFailures ins={ins} />
+        </Panel>
+      </div>
+
+      {/* Row 5: file types + session outcomes */}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Panel title="File Types" icon={FileType2} subtitle="What your agents edit, by extension" className="xl:col-span-2">
+          {ins.fileTypes.length ? (
+            <BarList items={ins.fileTypes.map((f) => ({ label: f.ext, value: f.count }))} color="var(--color-safe)" />
+          ) : (
+            <EmptyState icon={FileType2} title="No file changes yet" />
+          )}
+        </Panel>
+        <Panel title="Session Outcomes" icon={Activity} subtitle="How sessions end" iconColor="var(--color-safe)">
+          <Outcomes ins={ins} />
+        </Panel>
+      </div>
+
+      {/* Row 6: daily trend */}
+      <Panel title="Daily Trend" icon={CalendarDays} subtitle="Estimated cost & tokens per day (last 30 days)">
+        {ins.daily.length ? <DailyTrend ins={ins} /> : <EmptyState icon={CalendarDays} title="No dated activity yet" />}
+      </Panel>
     </div>
   );
 }
@@ -184,6 +234,134 @@ function ModelCost({ ins }: { ins: InsightsData }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ToolLatency({ ins }: { ins: InsightsData }) {
+  const { latency } = ins;
+  if (!latency.sampled) {
+    return (
+      <EmptyState icon={Timer} title="No timing data yet">
+        Latency appears once tool calls with timing are collected.
+      </EmptyState>
+    );
+  }
+  const max = Math.max(1, ...latency.tools.map((t) => t.medianMs));
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <StatTile label="median tool latency" value={formatDuration(latency.medianMs)} />
+        <StatTile label="median thinking time" value={formatDuration(latency.thinkingMs)} />
+      </div>
+      <div className="space-y-2.5">
+        {latency.tools.slice(0, 8).map((t) => (
+          <div key={t.name}>
+            <div className="flex items-center justify-between text-[12px]">
+              <span className="aac-truncate font-mono text-ink-2">{t.name}</span>
+              <span className="aac-tnum text-ink">
+                {formatDuration(t.medianMs)}{" "}
+                <span className="text-ink-3">· p90 {formatDuration(t.p90Ms)} · ×{formatNumber(t.count)}</span>
+              </span>
+            </div>
+            <div className="mt-1 h-2 overflow-hidden rounded-full bg-surface-2">
+              <div className="h-full rounded-full" style={{ width: `${Math.max(3, (t.medianMs / max) * 100)}%`, background: "var(--color-codex)" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] leading-snug text-ink-3">
+        Median execution time per tool. “Thinking time” is how long from your prompt to the agent’s first action.
+      </p>
+    </div>
+  );
+}
+
+function CommandFailures({ ins }: { ins: InsightsData }) {
+  const { failures } = ins;
+  if (!failures.withExit) return <EmptyState icon={AlertTriangle} title="No commands with exit codes yet" />;
+  const rate = failures.rate;
+  const color = rate >= 0.2 ? "var(--color-danger)" : rate >= 0.05 ? "var(--color-warn)" : "var(--color-safe)";
+  return (
+    <div className="flex flex-col items-center gap-2 py-1">
+      <span className="aac-tnum text-[44px] font-bold leading-none" style={{ color }}>
+        {formatPct(rate)}
+      </span>
+      <span className="text-[11px] text-ink-3">
+        {formatNumber(failures.failed)} of {formatNumber(failures.withExit)} commands exited non-zero
+      </span>
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-surface-2">
+        <div className="h-full rounded-full" style={{ width: `${Math.min(100, Math.round(rate * 100))}%`, background: color }} />
+      </div>
+      {failures.tools.filter((t) => t.failed > 0).length > 0 && (
+        <div className="mt-2 w-full space-y-1.5">
+          {failures.tools.filter((t) => t.failed > 0).slice(0, 4).map((t) => (
+            <div key={t.name} className="flex items-center justify-between text-[11px]">
+              <span className="aac-truncate font-mono text-ink-2">{t.name}</span>
+              <span className="aac-tnum text-ink-3">{t.failed}/{t.total} · {formatPct(t.rate)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Outcomes({ ins }: { ins: InsightsData }) {
+  const { outcomes } = ins;
+  if (!outcomes.total) return <EmptyState icon={Activity} title="No sessions yet" />;
+  const segs = [
+    { label: "completed", value: outcomes.completed, color: "var(--color-safe)" },
+    { label: "failed", value: outcomes.failed, color: "var(--color-danger)" },
+    { label: "interrupted", value: outcomes.active, color: "var(--color-warn)" },
+  ].filter((s) => s.value > 0);
+  return (
+    <div className="flex flex-col gap-3 py-1">
+      <div className="flex items-baseline gap-2">
+        <span className="aac-tnum text-[34px] font-bold leading-none text-safe">{formatPct(outcomes.completionRate)}</span>
+        <span className="text-[11px] text-ink-3">completed cleanly</span>
+      </div>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-surface-2">
+        {segs.map((s) => (
+          <div key={s.label} style={{ width: `${(s.value / outcomes.total) * 100}%`, background: s.color }} />
+        ))}
+      </div>
+      <div className="space-y-1.5">
+        {segs.map((s) => (
+          <div key={s.label} className="flex items-center justify-between text-[12px]">
+            <span className="flex items-center gap-1.5 capitalize text-ink-2">
+              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: s.color }} />
+              {s.label}
+            </span>
+            <span className="aac-tnum text-ink">{formatNumber(s.value)}</span>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] leading-snug text-ink-3">
+        “Interrupted” sessions ended without a clean stop — abandoned or cut off mid-turn.
+      </p>
+    </div>
+  );
+}
+
+function DailyTrend({ ins }: { ins: InsightsData }) {
+  const max = Math.max(1, ...ins.daily.map((d) => d.costUsd));
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex min-w-full items-end gap-2" style={{ height: 140 }}>
+        {ins.daily.map((d) => (
+          <div key={d.date} className="flex min-w-[26px] flex-1 flex-col items-center gap-1" title={`${d.date} · ${formatUsd(d.costUsd)} · ${formatTokens(d.tokens)} · ${d.sessions} session(s)`}>
+            <span className="aac-tnum text-[9px] text-ink-3">{d.costUsd >= 0.005 ? formatUsd(d.costUsd) : ""}</span>
+            <div className="flex w-full items-end justify-center" style={{ height: 96 }}>
+              <div
+                className="w-full max-w-[22px] rounded-t"
+                style={{ height: `${Math.max(4, (d.costUsd / max) * 96)}px`, background: "var(--color-claude)" }}
+              />
+            </div>
+            <span className="aac-tnum text-[9px] text-ink-3">{d.date.slice(5)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

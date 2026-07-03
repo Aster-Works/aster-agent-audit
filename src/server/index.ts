@@ -12,13 +12,19 @@ import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { serve, type ServerType } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { existsSync } from "node:fs";
+import { accessSync, constants, existsSync } from "node:fs";
 import { readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import type { AgentName, CollectorStatus } from "../core/types";
-import { openDb, type AgentConsoleDb, DEFAULT_DB_PATH } from "../db/index";
+import { openDb, type AgentConsoleDb, DEFAULT_DB_PATH, DEFAULT_CONFIG_DIR } from "../db/index";
 import { createCollector, type LiveMessage } from "./collector";
+import { createCodexImporter } from "./codex-import";
 import { assembleDataset } from "./dataset";
+import { loadConfig, saveConfig, PRICING_FAMILIES } from "./config";
+import { applyPricingOverrides, getPricing } from "./usage";
+import { hooksStatus } from "../cli/hooks/installer";
+import { riskRuleCatalog } from "../core/risk";
+import { mcpRuleCatalog } from "../core/mcp";
 import { createEnricher, limitConcurrency } from "./enrich";
 import { execFileGitRunner, type GitRunner } from "./git";
 
@@ -39,6 +45,8 @@ export type ServerOptions = {
   enrich?: boolean;
   /** drop history older than this many days (default 30; 0 disables). */
   retentionDays?: number;
+  /** tail ~/.codex/sessions rollouts into the collector (real entrypoints only). */
+  importCodex?: boolean;
 };
 
 export function createServer(opts: ServerOptions = {}) {
@@ -46,9 +54,15 @@ export function createServer(opts: ServerOptions = {}) {
   const host = opts.host ?? HOST;
   const port = opts.port ?? PORT;
 
+  // Persisted, user-editable settings. Pricing overrides take effect for all
+  // cost estimates; retention is enforced below (and re-applied on PATCH).
+  const cfg = loadConfig();
+  applyPricingOverrides(cfg.pricing);
+
   // Retention: enforce on startup and every 12h so the local DB stays bounded
-  // even for an always-on background collector.
-  const retentionDays = opts.retentionDays ?? 30;
+  // even for an always-on background collector. Mutable so Settings can change
+  // it live without a restart.
+  let retentionDays = opts.retentionDays ?? cfg.retentionDays ?? 30;
   try {
     db.pruneOlderThan(retentionDays);
   } catch {
@@ -72,6 +86,20 @@ export function createServer(opts: ServerOptions = {}) {
   const enricher =
     opts.enrich === false ? undefined : limitConcurrency(createEnricher(db, gitRunner, broadcast));
   const collector = createCollector(db, broadcast, enricher);
+
+  // Codex has no per-tool hook — tail its rollout logs into the same pipeline.
+  // Off by default (unit tests must not read the real ~/.codex); the CLI
+  // entrypoints opt in. The import-offset state lives next to the DB so running
+  // against a different DB can never corrupt the real DB's offsets.
+  const dbFile = opts.dbPath ?? DEFAULT_DB_PATH;
+  const codexImporter = opts.importCodex
+    ? createCodexImporter({
+        collector,
+        retentionDays,
+        stateFile: dbFile === ":memory:" ? undefined : join(dirname(dbFile), "codex-import.json"),
+      })
+    : undefined;
+  codexImporter?.start();
 
   function status(): CollectorStatus {
     return {
@@ -147,9 +175,73 @@ export function createServer(opts: ServerOptions = {}) {
     const ds = assembleDataset(db, status());
     return ds ? c.json(ds.repoActivity) : c.json({ empty: true });
   });
-  app.get("/api/settings", (c) =>
-    c.json({ status: status(), dbPath: opts.dbPath ?? DEFAULT_DB_PATH })
-  );
+  function diagnostics() {
+    const nodeMajor = Number(process.versions.node.split(".")[0]);
+    let writable = false;
+    try {
+      accessSync(DEFAULT_CONFIG_DIR, constants.W_OK);
+      writable = true;
+    } catch {
+      /* not writable */
+    }
+    let dbOk = false;
+    let counts: ReturnType<AgentConsoleDb["counts"]> | undefined;
+    try {
+      counts = db.counts();
+      dbOk = true;
+    } catch {
+      /* unreadable */
+    }
+    return [
+      { label: "Node.js ≥ 20", ok: nodeMajor >= 20, detail: `v${process.versions.node}` },
+      { label: "Config directory writable", ok: writable, detail: DEFAULT_CONFIG_DIR },
+      { label: "Local collector", ok: true, detail: `online · ${host}:${port}` },
+      {
+        label: "Database readable",
+        ok: dbOk,
+        detail: dbOk ? `${counts!.sessions} sessions · ${counts!.events} events` : "unreadable",
+      },
+    ];
+  }
+
+  function settingsPayload() {
+    return {
+      status: status(),
+      dbPath: opts.dbPath ?? DEFAULT_DB_PATH,
+      counts: db.counts(),
+      retentionDays,
+      pricing: getPricing(),
+      pricingFamilies: PRICING_FAMILIES,
+      agents: hooksStatus(),
+      diagnostics: diagnostics(),
+      rules: [...riskRuleCatalog(), ...mcpRuleCatalog()],
+    };
+  }
+
+  app.get("/api/settings", (c) => c.json(settingsPayload()));
+
+  // Update persisted settings (retention / pricing) and apply them live.
+  app.patch("/api/settings", async (c) => {
+    let body: { retentionDays?: number; pricing?: Record<string, [number, number, number, number]> };
+    try {
+      body = (await c.req.json()) as typeof body;
+    } catch {
+      return c.json({ ok: false, error: "invalid JSON" }, 400);
+    }
+    const patch: { retentionDays?: number; pricing?: Record<string, [number, number, number, number]> } = {};
+    if (typeof body.retentionDays === "number") patch.retentionDays = body.retentionDays;
+    if (body.pricing && typeof body.pricing === "object") patch.pricing = body.pricing;
+
+    const next = saveConfig(patch);
+    retentionDays = next.retentionDays;
+    applyPricingOverrides(next.pricing);
+    try {
+      db.pruneOlderThan(retentionDays);
+    } catch {
+      /* non-fatal */
+    }
+    return c.json(settingsPayload());
+  });
 
   // ---- SSE live stream ----
   app.get("/api/live", (c) =>
@@ -199,6 +291,7 @@ export function createServer(opts: ServerOptions = {}) {
   }
   function close() {
     clearInterval(pruneTimer);
+    codexImporter?.stop();
     server?.close();
     db.close();
   }

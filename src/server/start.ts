@@ -9,7 +9,7 @@ const port = Number(process.env.AAC_PORT ?? PORT);
 const dbPath = process.env.AAC_DB ?? DEFAULT_DB_PATH;
 const webDir = process.env.AAC_WEB || undefined;
 
-const srv = createServer({ port, dbPath, webDir });
+const srv = createServer({ port, dbPath, webDir, importCodex: true });
 srv
   .start()
   .then(({ host, port }) => {

@@ -26,7 +26,7 @@ function stripSecrets(text) {
     .replace(/(gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}/g, "gh-token-[redacted]")
     .replace(/eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}/g, "jwt-[redacted]")
     .replace(/-----BEGIN [^-]*PRIVATE KEY-----[\\s\\S]*?-----END [^-]*PRIVATE KEY-----/g, "private-key-[redacted]")
-    .replace(/([A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[A-Z0-9_]*\\s*=\\s*)("?)([^"\\s]{6,})/g, "$1$2[redacted]");
+    .replace(/([A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD)[A-Za-z0-9_]*\\s*=\\s*)("?)([^"\\s]{6,})/gi, "$1$2[redacted]");
 }
 
 function readStdin() {

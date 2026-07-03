@@ -450,7 +450,10 @@ function EventInspector({
   event: NormalizedAgentEvent;
   session: AgentSession;
 }) {
-  const diff = event.links?.files?.[0] ? DEMO_DIFFS[event.links.files[0]] : undefined;
+  // Sample diffs are illustrative demo content only — never show them over live
+  // data (we don't reconstruct real file diffs from hook events).
+  const isDemo = useAppStore((s) => s.source) === "demo";
+  const diff = isDemo && event.links?.files?.[0] ? DEMO_DIFFS[event.links.files[0]] : undefined;
   const command = event.risk?.[0]?.redactedEvidence;
   return (
     <div className="flex flex-col">

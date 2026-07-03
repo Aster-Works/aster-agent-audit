@@ -27,9 +27,11 @@ const PATTERNS: Pattern[] = [
   { kind: "url_credential", re: /\b([a-z][a-z0-9+.-]*):\/\/[^/\s:@]+:([^/\s@]+)@/gi },
 ];
 
-// .env-style assignments: API_KEY=..., SECRET=..., TOKEN=..., PASSWORD=...
+// .env-style assignments: API_KEY=..., secret=..., database_password=..., etc.
+// Case-insensitive so lowercase/mixed-case keys (api_key, db_pass) are caught
+// too — captured shell output (e.g. Codex running `cat .env`) is rarely all-caps.
 const ENV_ASSIGN =
-  /\b([A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|CREDENTIAL|PRIVATE)[A-Z0-9_]*)\s*=\s*("?)([^"\s]{6,})\2/g;
+  /\b([A-Za-z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|PASSWD|PWD|CREDENTIAL|PRIVATE)[A-Za-z0-9_]*)\s*=\s*("?)([^"\s]{6,})\2/gi;
 
 /** FNV-1a 32-bit hash → 8 hex chars. Non-reversible identity for dedupe. */
 export function fingerprint(value: string): string {

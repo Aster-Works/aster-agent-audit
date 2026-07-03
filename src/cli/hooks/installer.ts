@@ -95,44 +95,59 @@ function installClaude(det: AgentDetection, dryRun: boolean): HookAction {
   return { agent: "claude-code", label: "Claude Code", action: "installed", detail: file, backup: backupPath };
 }
 
-// ---- Codex (config.toml notify, fenced + reversible) ----------------------
+// ---- Codex (automatic: reads ~/.codex/sessions, no config change) ----------
+
+const CODEX_AUTO_DETAIL = "automatic — reads ~/.codex/sessions (no config change)";
+
+/**
+ * Remove a legacy managed notify block and reconcile any `notify` line an older
+ * version commented out. Codex has a single `notify` slot: earlier versions
+ * hijacked it, which could shadow the user's own consumer (e.g. Codex Computer
+ * Use). We now read the rollout logs instead, so this repairs old installs.
+ *  - drop the managed fence block entirely
+ *  - if an active `notify` already exists, the `# [aster-agent] disabled:` copy
+ *    is a duplicate → remove it; otherwise restore (uncomment) it.
+ */
+export function cleanupCodexConfig(body: string): string {
+  let out = body;
+  const fence = new RegExp(`\\n*${escapeRe(FENCE_START)}[\\s\\S]*?${escapeRe(FENCE_END)}\\n?`, "g");
+  out = out.replace(fence, "\n");
+  const withoutDisabled = out.replace(/^# \[aster-agent\] disabled: .*$/gm, "");
+  const hasActiveNotify = /^\s*notify\s*=/m.test(withoutDisabled);
+  if (hasActiveNotify) {
+    out = out.replace(/^# \[aster-agent\] disabled: .*\n?/gm, "");
+  } else {
+    out = out.replace(/^# \[aster-agent\] disabled: (.*)$/gm, "$1");
+  }
+  return out.replace(/\n{3,}/g, "\n\n");
+}
 
 function installCodex(det: AgentDetection, dryRun: boolean): HookAction {
   const target = det.configPaths.find((p) => p.exists && p.path.endsWith("config.toml")) ?? det.configPaths[0];
   const file = target.path;
 
-  if (det.hookInstalled) {
-    return { agent: "codex", label: "Codex", action: "already", detail: file };
+  // Codex activity is collected by reading its rollout logs — nothing to wire
+  // in. If an older version left a managed notify block, repair it.
+  if (!existsSync(file)) {
+    return { agent: "codex", label: "Codex", action: "already", detail: CODEX_AUTO_DETAIL };
+  }
+  const body = readFileSync(file, "utf8");
+  const cleaned = cleanupCodexConfig(body);
+  if (cleaned === body) {
+    return { agent: "codex", label: "Codex", action: "already", detail: CODEX_AUTO_DETAIL };
   }
   if (dryRun) {
-    return { agent: "codex", label: "Codex", action: "would-install", detail: file };
+    return { agent: "codex", label: "Codex", action: "would-install", detail: `repair legacy notify block in ${file}` };
   }
-
-  let backupPath: string | undefined;
-  let body = "";
-  if (existsSync(file)) {
-    backupPath = backup(file);
-    body = readFileSync(file, "utf8");
-  } else {
-    mkdirSync(join(file, ".."), { recursive: true });
-  }
-
-  const hookPath = writeHookFile("codex");
-  // `notify` runs a program with the event JSON; our hook also reads argv.
-  const block = [
-    FENCE_START,
-    "# Forwards Codex events to the local Aster Agent Console collector.",
-    "# Remove this block (or run `aster-agent hooks uninstall`) to disable.",
-    `notify = ["node", ${JSON.stringify(hookPath)}]`,
-    FENCE_END,
-    "",
-  ].join("\n");
-
-  // Comment out any existing top-level notify so ours takes effect (reversible via backup).
-  body = body.replace(/^(\s*notify\s*=.*)$/gm, "# [aster-agent] disabled: $1");
-  const next = (body.trimEnd() + "\n\n" + block).trimStart();
-  writeFileSync(file, next);
-  return { agent: "codex", label: "Codex", action: "installed", detail: file, backup: backupPath };
+  const backupPath = backup(file);
+  writeFileSync(file, cleaned);
+  return {
+    agent: "codex",
+    label: "Codex",
+    action: "installed",
+    detail: `repaired legacy notify block · ${CODEX_AUTO_DETAIL}`,
+    backup: backupPath,
+  };
 }
 
 // ---- Public API -----------------------------------------------------------
@@ -154,6 +169,26 @@ export function uninstallHooks(cwd = process.cwd()): HookAction[] {
   const agents = detectAgents(cwd);
   const out: HookAction[] = [];
   for (const det of agents) {
+    if (det.agent === "codex") {
+      // Codex is read-only auto-collection; "uninstall" only strips a legacy
+      // managed notify block if one is still present.
+      const target = det.configPaths.find((p) => p.exists && p.path.endsWith("config.toml"));
+      if (!target) {
+        out.push({ agent: det.agent, label: det.label, action: "not-installed", detail: CODEX_AUTO_DETAIL });
+        continue;
+      }
+      const body = readFileSync(target.path, "utf8");
+      const cleaned = cleanupCodexConfig(body);
+      if (cleaned === body) {
+        out.push({ agent: det.agent, label: det.label, action: "not-installed", detail: "no managed block" });
+        continue;
+      }
+      const backupPath = backup(target.path);
+      writeFileSync(target.path, cleaned);
+      out.push({ agent: det.agent, label: det.label, action: "removed", detail: target.path, backup: backupPath });
+      continue;
+    }
+
     const target = det.configPaths.find((p) => p.exists);
     if (!target || !det.hookInstalled) {
       out.push({ agent: det.agent, label: det.label, action: "not-installed", detail: target?.path ?? "—" });
@@ -161,26 +196,18 @@ export function uninstallHooks(cwd = process.cwd()): HookAction[] {
     }
     const file = target.path;
     const backupPath = backup(file);
-    if (det.agent === "claude-code") {
-      try {
-        const settings = JSON.parse(readFileSync(file, "utf8")) as { hooks?: Record<string, unknown[]> };
-        const hooks = settings.hooks ?? {};
-        for (const event of Object.keys(hooks)) {
-          hooks[event] = (hooks[event] as Array<{ hooks?: Array<{ command?: string }> }>).filter(
-            (g) => !g.hooks?.some((h) => h.command?.includes(MARKER))
-          );
-          if ((hooks[event] as unknown[]).length === 0) delete hooks[event];
-        }
-        writeFileSync(file, JSON.stringify(settings, null, 2));
-      } catch {
-        /* leave backup in place */
+    try {
+      const settings = JSON.parse(readFileSync(file, "utf8")) as { hooks?: Record<string, unknown[]> };
+      const hooks = settings.hooks ?? {};
+      for (const event of Object.keys(hooks)) {
+        hooks[event] = (hooks[event] as Array<{ hooks?: Array<{ command?: string }> }>).filter(
+          (g) => !g.hooks?.some((h) => h.command?.includes(MARKER))
+        );
+        if ((hooks[event] as unknown[]).length === 0) delete hooks[event];
       }
-    } else {
-      let body = readFileSync(file, "utf8");
-      const fence = new RegExp(`\\n?${escapeRe(FENCE_START)}[\\s\\S]*?${escapeRe(FENCE_END)}\\n?`, "g");
-      body = body.replace(fence, "\n");
-      body = body.replace(/^# \[aster-agent\] disabled: (.*)$/gm, "$1");
-      writeFileSync(file, body);
+      writeFileSync(file, JSON.stringify(settings, null, 2));
+    } catch {
+      /* leave backup in place */
     }
     out.push({ agent: det.agent, label: det.label, action: "removed", detail: file, backup: backupPath });
   }
@@ -192,6 +219,7 @@ export function hooksStatus(cwd = process.cwd()): {
   label: string;
   present: boolean;
   installed: boolean;
+  mechanism: "hook" | "auto";
   configPath?: string;
 }[] {
   return detectAgents(cwd).map((d) => ({
@@ -199,6 +227,7 @@ export function hooksStatus(cwd = process.cwd()): {
     label: d.label,
     present: d.present,
     installed: d.hookInstalled,
+    mechanism: d.mechanism,
     configPath: d.configPaths.find((p) => p.exists)?.path,
   }));
 }

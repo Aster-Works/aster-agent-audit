@@ -38,6 +38,19 @@ describe("redaction", () => {
     expect(redactions.some((r) => r.kind === "env_value")).toBe(true);
   });
 
+  it("redacts lowercase / mixed-case secret assignments (captured shell output)", () => {
+    // Codex commonly captures `cat .env` style output with lowercase keys.
+    for (const [input, secret] of [
+      ["database_password=hunter2hunter2", "hunter2hunter2"],
+      ["export my_api_key=abcdef123456", "abcdef123456"],
+      ["Aws_Secret=zzzzzzzzzzzz", "zzzzzzzzzzzz"],
+    ] as const) {
+      const { text, redactions } = redactString(input);
+      expect(text, input).not.toContain(secret);
+      expect(redactions.some((r) => r.kind === "env_value"), input).toBe(true);
+    }
+  });
+
   it("walks nested JSON and records field paths", () => {
     const { value, redactions } = redactJson({
       command: "deploy",

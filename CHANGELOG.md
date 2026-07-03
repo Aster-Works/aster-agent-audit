@@ -4,6 +4,42 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.10] — 2026-07-04
+
+### Added
+
+- **Codex activity is now collected in full.** Codex has no per-tool hook, so its
+  work is read directly from its rollout session logs (`~/.codex/sessions`) —
+  commands, exit codes, patched files, MCP calls, and token/cost — through the
+  same redaction, risk detection, and enrichment pipeline as Claude Code. No
+  configuration change is required, and it no longer touches Codex's single
+  `notify` slot, so other consumers (e.g. Codex Computer Use) keep working.
+- **Five more Insights statistics**, all filter-aware: tool **latency** (per-tool
+  median / p90 execution time, plus prompt-to-first-action "thinking time"),
+  **command failure rate**, **file-type breakdown** by extension, **daily
+  cost/token trend** (last 30 days), and **session outcomes** (completed / failed
+  / interrupted).
+- **Settings is now live and configurable.** Real per-agent collection status and
+  live diagnostics, the actual active detection rules, editable and persisted
+  **data retention** and **cost-estimate rates**, and working **Export** (work
+  report JSON, findings CSV).
+
+### Fixed
+
+- **Redaction now catches lowercase and mixed-case secret assignments** (e.g.
+  `api_key=…`, `database_password=…`), not only all-uppercase keys — important now
+  that captured shell output is ingested.
+- Codex hook setup now **repairs** a legacy managed `notify` block instead of
+  hijacking Codex's `notify`.
+- Stat-correctness fixes: tool-latency pairing no longer desyncs when an explicit
+  duration is present, and the command-failure rate counts real command runs only
+  (a red test suite is no longer scored as a broken command).
+
+### Changed
+
+- Codex integration switched from the `notify` hook to automatic rollout-log
+  reading (see Added). `aster-agent init` requires no Codex config change.
+
 ## [0.1.9] — 2026-07-04
 
 ### Added

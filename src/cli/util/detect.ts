@@ -17,7 +17,16 @@ export type AgentDetection = {
   label: string;
   present: boolean;
   configPaths: ConfigPath[];
-  /** an Aster Agent Console hook is already wired into this agent's config */
+  /**
+   * How this agent's activity is collected:
+   *  - "hook": a command hook wired into the agent's config (Claude Code)
+   *  - "auto": we read the agent's own session logs, no config change (Codex)
+   */
+  mechanism: "hook" | "auto";
+  /**
+   * Collection is active. For "hook" agents this means the hook is wired in;
+   * for "auto" agents it means the session-log source exists to read.
+   */
   hookInstalled: boolean;
 };
 
@@ -47,8 +56,10 @@ export function detectAgents(cwd: string = process.cwd()): AgentDetection[] {
     entry(join(cwd, ".codex", "config.toml"), "project"),
   ];
 
+  // Claude's hook lives in settings.json; Codex has no hook — we read its
+  // rollout logs directly, so "collecting" just means those logs exist.
   const claudeHook = claudePaths.some((p) => fileMentions(p.path, "aster-agent"));
-  const codexHook = codexPaths.some((p) => fileMentions(p.path, "aster-agent"));
+  const codexSessions = join(home, ".codex", "sessions");
 
   return [
     {
@@ -56,6 +67,7 @@ export function detectAgents(cwd: string = process.cwd()): AgentDetection[] {
       label: "Claude Code",
       present: claudePaths.some((p) => p.exists) || existsSync(join(home, ".claude")),
       configPaths: claudePaths,
+      mechanism: "hook",
       hookInstalled: claudeHook,
     },
     {
@@ -63,7 +75,8 @@ export function detectAgents(cwd: string = process.cwd()): AgentDetection[] {
       label: "Codex",
       present: codexPaths.some((p) => p.exists) || existsSync(join(home, ".codex")),
       configPaths: codexPaths,
-      hookInstalled: codexHook,
+      mechanism: "auto",
+      hookInstalled: existsSync(codexSessions),
     },
   ];
 }

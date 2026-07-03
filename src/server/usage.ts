@@ -39,7 +39,8 @@ function num(v: unknown): number {
 }
 
 // ---- pricing (USD per 1M tokens: [input, output, cacheRead, cacheWrite]) ----
-// Estimates only. Edit to match current published rates.
+// Estimates only. Defaults below; the Settings screen can override any family at
+// runtime via applyPricingOverrides (persisted in config.json).
 const PRICING: Record<string, [number, number, number, number]> = {
   "claude-opus": [15, 75, 1.5, 18.75],
   "claude-sonnet": [3, 15, 0.3, 3.75],
@@ -47,6 +48,19 @@ const PRICING: Record<string, [number, number, number, number]> = {
   "gpt-5": [1.25, 10, 0.125, 0],
   default: [3, 15, 0.3, 3.75],
 };
+
+/** Merge user rate overrides (from config.json) over the defaults, in place. */
+export function applyPricingOverrides(overrides?: Record<string, [number, number, number, number]>): void {
+  if (!overrides) return;
+  for (const [key, rate] of Object.entries(overrides)) {
+    if (key in PRICING && Array.isArray(rate) && rate.length === 4) PRICING[key] = [rate[0], rate[1], rate[2], rate[3]];
+  }
+}
+
+/** Current effective rate table (defaults with any overrides applied). */
+export function getPricing(): Record<string, [number, number, number, number]> {
+  return { ...PRICING };
+}
 
 function rateFor(model?: string): [number, number, number, number] {
   const m = (model ?? "").toLowerCase();

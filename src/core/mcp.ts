@@ -456,3 +456,8 @@ export function scoreFindings(findings: { severity: RiskSeverity }[]): { score: 
   const grade: Grade = score >= 90 ? "A" : score >= 75 ? "B" : score >= 60 ? "C" : score >= 40 ? "D" : "F";
   return { score, grade };
 }
+
+/** Read-only catalog of the active MCP-risk rules (for the Settings UI). */
+export function mcpRuleCatalog(): { ruleId: string; category: RiskFinding["category"]; severity: RiskSeverity; title: string }[] {
+  return MCP_RULES.map((r) => ({ ruleId: r.ruleId, category: r.category, severity: r.severity, title: r.title }));
+}

@@ -16,7 +16,7 @@ export async function serve(opts: { port?: number; db?: string } = {}): Promise<
 
   const db = openDb(dbPath);
   const webDir = findWebDir();
-  const srv = createServer({ db, dbPath, host: HOST, port, webDir });
+  const srv = createServer({ db, dbPath, host: HOST, port, webDir, importCodex: true });
 
   try {
     const started = await srv.start();

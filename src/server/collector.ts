@@ -4,7 +4,7 @@
  * Incoming commands are NEVER executed. Secrets are redacted before they reach
  * the DB. A malformed payload degrades to a best-effort event, never a throw.
  */
-import type { AgentName, FileChange, NormalizedAgentEvent, RiskFinding } from "../core/types";
+import type { AgentName, EventSource, FileChange, NormalizedAgentEvent, RiskFinding } from "../core/types";
 import { normalizeHookEvent } from "../core/normalize";
 import { detectEventRisks } from "../core/risk";
 import { fingerprint } from "../core/redaction";
@@ -31,8 +31,12 @@ export function createCollector(
   emit?: (msg: LiveMessage) => void,
   enrich?: Enricher
 ) {
-  function ingest(agentHint: AgentName, payload: unknown): IngestResult {
-    const { event, secretKinds, files } = normalizeHookEvent(agentHint, payload);
+  function ingest(
+    agentHint: AgentName,
+    payload: unknown,
+    opts?: { id?: string; source?: EventSource }
+  ): IngestResult {
+    const { event, secretKinds, files } = normalizeHookEvent(agentHint, payload, opts);
     const findings = detectEventRisks(
       event,
       event.input?.value as Record<string, unknown> | undefined,
@@ -64,7 +68,7 @@ export function createCollector(
 
     // Record a file_change for write-style tool calls (lightweight; git
     // enrichment with real diff stats is Phase 5).
-    const isWrite = /write|edit|create|append|multiedit/i.test(event.toolName ?? "");
+    const isWrite = /write|edit|create|append|multiedit|patch/i.test(event.toolName ?? "");
     if (isWrite && files.length && event.repoPath) {
       for (const filePath of files) {
         const fc: FileChange = {

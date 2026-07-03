@@ -276,3 +276,8 @@ export function maxSeverity(findings: { severity: RiskSeverity }[]): RiskSeverit
   for (const f of findings) best = Math.max(best, order.indexOf(f.severity));
   return best >= 0 ? order[best] : undefined;
 }
+
+/** Read-only catalog of the active command-risk rules (for the Settings UI). */
+export function riskRuleCatalog(): { ruleId: string; category: RiskCategory; severity: RiskSeverity; title: string }[] {
+  return COMMAND_RULES.map((r) => ({ ruleId: r.ruleId, category: r.category, severity: r.severity, title: r.title }));
+}

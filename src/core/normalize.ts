@@ -8,6 +8,7 @@ import { z } from "zod";
 import type {
   AgentEventType,
   AgentName,
+  EventSource,
   NormalizedAgentEvent,
   RedactionKind,
 } from "./types";
@@ -131,7 +132,8 @@ export type NormalizeResult = {
 
 export function normalizeHookEvent(
   agentHint: AgentName,
-  payload: unknown
+  payload: unknown,
+  opts?: { id?: string; source?: EventSource }
 ): NormalizeResult {
   const parsed = HookSchema.safeParse(payload);
   const data = parsed.success ? parsed.data : {};
@@ -174,6 +176,15 @@ export function normalizeHookEvent(
       ? rawOutput.exitCode
       : undefined;
 
+  // Tool execution time, when the agent reports it (Codex "Wall time"). Claude
+  // hooks don't carry it — latency for those is derived from pre/post pairing.
+  const durationMs =
+    typeof rawOutput.duration_ms === "number" && rawOutput.duration_ms >= 0
+      ? rawOutput.duration_ms
+      : typeof rawOutput.durationMs === "number" && rawOutput.durationMs >= 0
+      ? rawOutput.durationMs
+      : undefined;
+
   // Phase 5: refine a completed command into a test_result / git_event so the
   // dashboard can audit tests and commits. Classify on the REDACTED command
   // (command keywords are not secrets). A commit only counts if it succeeded.
@@ -195,10 +206,18 @@ export function normalizeHookEvent(
 
   const file = pick(safeInput, ["file_path", "path", "filePath", "target"]);
 
+  const metrics =
+    derivedExit != null || durationMs != null
+      ? {
+          ...(derivedExit != null ? { exitCode: derivedExit } : {}),
+          ...(durationMs != null ? { durationMs } : {}),
+        }
+      : undefined;
+
   const event: NormalizedAgentEvent = {
-    id: eventId(sessionId + type),
+    id: opts?.id ?? eventId(sessionId + type),
     agent,
-    source: "hook",
+    source: opts?.source ?? "hook",
     type,
     sessionId,
     turnId,
@@ -212,7 +231,7 @@ export function normalizeHookEvent(
     summary: type === "user_prompt" ? truncate(safePrompt, 160) : undefined,
     input: redactedInput.redactions.length || Object.keys(rawInput).length ? redactedInput : undefined,
     output: redactedOutput.redactions.length || Object.keys(rawOutput).length ? redactedOutput : undefined,
-    metrics: derivedExit != null ? { exitCode: derivedExit } : undefined,
+    metrics,
     links: file ? { files: [file] } : undefined,
     // Preserved for the server-side usage enricher only (token counts live in
     // the transcript, not in hook payloads). Never stored.

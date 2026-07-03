@@ -50,7 +50,7 @@ export async function dashboard(opts: DashboardOptions = {}): Promise<void> {
   const db = openDb(dbPath);
 
   const webDir = findWebDir();
-  const srv = createServer({ db, dbPath, host: HOST, port, webDir });
+  const srv = createServer({ db, dbPath, host: HOST, port, webDir, importCodex: true });
 
   let started: { host: string; port: number };
   try {
