@@ -138,6 +138,11 @@ export type AgentSession = {
   summary?: string;
   totalTokens?: number;
   estimatedCostUsd?: number;
+  /** token composition (from transcript usage), when available */
+  inputTokens?: number;
+  outputTokens?: number;
+  cachedInputTokens?: number;
+  cacheWriteTokens?: number;
   filesChanged?: number;
   commits?: number;
   testsPassed?: number;

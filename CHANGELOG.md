@@ -4,6 +4,19 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.9] — 2026-07-04
+
+### Added
+
+- **Insights screen.** A new page with five statistics, all filter-aware:
+  token composition (uncached input / cache read / output / cache write) with a
+  **cache-hit-rate** gauge, **cost efficiency** ($ per commit / file / session,
+  tokens per tool call), **tool-usage distribution**, **risk-interception rate**
+  (flagged share of tool calls), and **cost by model**.
+- Session token **breakdown** (input / output / cache-read / cache-write) is now
+  persisted (new columns, auto-migrated on existing databases) to power the
+  token-composition and cache-hit-rate views.
+
 ## [0.1.8] — 2026-07-04
 
 ### Changed
@@ -133,6 +146,7 @@ First public beta (Phases 1–6).
 - The local server enforces a host-header guard, a JSON-only content type, and
   a request-body size limit.
 
+[0.1.9]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/Aster-Works/aster-agent-console/compare/v0.1.5...v0.1.6

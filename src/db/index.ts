@@ -33,6 +33,10 @@ create table if not exists sessions (
   summary text,
   total_tokens integer,
   estimated_cost_usd real,
+  input_tokens integer,
+  output_tokens integer,
+  cached_input_tokens integer,
+  cache_write_tokens integer,
   files_changed integer default 0,
   commits integer default 0,
   tests_passed integer default 0,
@@ -122,6 +126,14 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
   raw.pragma("foreign_keys = ON");
   raw.pragma("busy_timeout = 3000");
   raw.exec(SCHEMA);
+
+  // Migrate older DBs: add usage-breakdown columns if missing.
+  const sessionCols = new Set(
+    (raw.prepare(`PRAGMA table_info(sessions)`).all() as { name: string }[]).map((c) => c.name)
+  );
+  for (const col of ["input_tokens", "output_tokens", "cached_input_tokens", "cache_write_tokens"]) {
+    if (!sessionCols.has(col)) raw.exec(`alter table sessions add column ${col} integer`);
+  }
 
   // ---- sessions ----------------------------------------------------------
   const upsertSessionStmt = raw.prepare(`
@@ -267,18 +279,34 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
     `update sessions set
        total_tokens = @tokens,
        estimated_cost_usd = @cost,
+       input_tokens = @input,
+       output_tokens = @output,
+       cached_input_tokens = @cached,
+       cache_write_tokens = @cacheWrite,
        model = coalesce(@model, model),
        updated_at = @upd
      where id = @id`
   );
   function updateSessionUsage(
     sessionId: string,
-    u: { totalTokens: number; costUsd: number; model?: string }
+    u: {
+      totalTokens: number;
+      costUsd: number;
+      model?: string;
+      inputTokens?: number;
+      outputTokens?: number;
+      cachedInputTokens?: number;
+      cacheWriteTokens?: number;
+    }
   ) {
     updateUsageStmt.run({
       id: sessionId,
       tokens: u.totalTokens > 0 ? u.totalTokens : null,
       cost: u.costUsd > 0 ? u.costUsd : null,
+      input: u.inputTokens ?? null,
+      output: u.outputTokens ?? null,
+      cached: u.cachedInputTokens ?? null,
+      cacheWrite: u.cacheWriteTokens ?? null,
       model: u.model ?? null,
       upd: now(),
     });
@@ -535,6 +563,10 @@ function rowToSession(r: Record<string, unknown>): AgentSession {
     summary: (r.summary as string) ?? undefined,
     totalTokens: (r.total_tokens as number) ?? undefined,
     estimatedCostUsd: (r.estimated_cost_usd as number) ?? undefined,
+    inputTokens: (r.input_tokens as number) ?? undefined,
+    outputTokens: (r.output_tokens as number) ?? undefined,
+    cachedInputTokens: (r.cached_input_tokens as number) ?? undefined,
+    cacheWriteTokens: (r.cache_write_tokens as number) ?? undefined,
     filesChanged: (r.files_changed as number) ?? 0,
     commits: (r.commits as number) ?? 0,
     testsPassed: (r.tests_passed as number) ?? 0,

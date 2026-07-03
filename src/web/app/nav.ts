@@ -4,6 +4,7 @@ import {
   FolderGit2,
   Radar,
   Bot,
+  BarChart3,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -21,6 +22,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/repo-activity", label: "Repo Activity", icon: FolderGit2, match: "repo-activity" },
   { to: "/risk-radar", label: "Risk Radar", icon: Radar, match: "risk-radar" },
   { to: "/agents", label: "Agents", icon: Bot, match: "agents" },
+  { to: "/insights", label: "Insights", icon: BarChart3, match: "insights" },
   { to: "/settings", label: "Settings", icon: Settings, match: "settings" },
 ];
 
@@ -42,5 +44,6 @@ export const PAGE_TITLES: Record<string, { title: string; subtitle: string }> = 
     subtitle: "Agent safety as a daily checkable cockpit",
   },
   agents: { title: "Agents", subtitle: "Per-agent performance and integration status" },
+  insights: { title: "Insights", subtitle: "Where your tokens, cost, and risk actually go" },
   settings: { title: "Settings", subtitle: "Integrations, storage, redaction, and diagnostics" },
 };

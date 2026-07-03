@@ -132,6 +132,7 @@ event is spooled to `~/.aster-agent-console/spool/` and replayed on the next
 - **Session Replay** — multi-track timeline (User / Agent / Shell / Files / Tests / Git) with a scrubbable playhead and an event inspector (input, redacted output, diff, risk).
 - **Repo Activity** — directory treemap, hot files, git timeline, contribution heatmap, file inspector.
 - **Risk Radar** — severity counters, risk surface radar, category × severity matrix, finding details, MCP permission map, policy timeline.
+- **Insights** — token composition & cache-hit rate, cost efficiency ($/commit, $/file), tool-usage distribution, risk-interception rate, and cost by model.
 - **Agents** / **Settings** — per-agent comparison; integrations, storage, redaction & risk policy, diagnostics.
 
 |  |  |

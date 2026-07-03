@@ -8,6 +8,7 @@ import { SessionReplay } from "./routes/SessionReplay";
 import { RepoActivity } from "./routes/RepoActivity";
 import { RiskRadar } from "./routes/RiskRadar";
 import { Agents } from "./routes/Agents";
+import { Insights } from "./routes/Insights";
 import { Settings } from "./routes/Settings";
 
 // Hash router keeps deep links working when the CLI serves the SPA from a
@@ -24,6 +25,7 @@ const router = createHashRouter([
       { path: "repo-activity", element: <RepoActivity /> },
       { path: "risk-radar", element: <RiskRadar /> },
       { path: "agents", element: <Agents /> },
+      { path: "insights", element: <Insights /> },
       { path: "settings", element: <Settings /> },
       { path: "*", element: <Navigate to="/overview" replace /> },
     ],

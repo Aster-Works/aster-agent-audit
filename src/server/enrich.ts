@@ -90,6 +90,10 @@ export function createEnricher(
       totalTokens: usage.totalTokens,
       costUsd: usage.costUsd,
       model: usage.model,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cachedInputTokens: usage.cachedInputTokens,
+      cacheWriteTokens: usage.cacheWriteTokens,
     });
     emit?.({ kind: "event", event, risk: [] });
   }
