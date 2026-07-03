@@ -35,9 +35,9 @@ The permission tags shown per server (`inferPermissions` in `src/core/mcp.ts`) a
 
 Secrets are redacted **before** anything is written to disk (`src/core/redaction.ts`), and spooled events are redacted-minimal. This is defense-in-depth, not a guarantee. Redaction is pattern-based, so a novel secret format could slip through. Do not treat the local database as safe to publish.
 
-## Data comes from hooks — no transcript parsing
+## Events come from hooks; token counts come from transcripts
 
-The console ingests events only through installed **hooks** (`src/cli/hooks/*`). It does not parse agent transcripts or logs.
+The console's event stream — sessions, prompts, tool calls, tests, git — comes only through installed **hooks** (`src/cli/hooks/*`). The one exception is **token counts**, which no hook exposes; those are read (numbers only) from each agent's transcript — see "Token counts … cost is an estimate" below.
 
 ```bash
 aster-agent hooks status              # is anything installed?
@@ -50,6 +50,14 @@ Consequences:
 - **Without hooks installed, you see demo data only.** The dashboard ships deterministic demo data (with a demo/live toggle in the top bar) so the UI works before setup — but it is not your activity.
 - **Hook payload formats may change across agent versions.** Claude Code and Codex can change what they send; a format the parser does not recognize may be recorded thinly or not at all.
 - Hooks never block the agent and never execute commands (short timeout, always exit 0). If the collector is offline, events are spooled redacted-minimal and replayed on the next `aster-agent dashboard`.
+
+## Token counts are read from transcripts; cost is an estimate
+
+Hook payloads carry no token usage, so token counts are read directly from each agent's transcript — **numbers only. No prompt or response content is ever read into the console, forwarded, or stored** (`src/server/usage.ts`). This runs on the local collector as opt-in enrichment.
+
+- **Cost is an estimate.** It is token counts × a small, editable rate table (`PRICING` in `src/server/usage.ts`) and is labeled *estimated* in the UI. Published prices change — treat the figure as approximate and edit the table if you need accuracy. The token counts themselves are exact.
+- **Transcript formats are internal and may change.** Claude Code (`~/.claude/projects/*.jsonl`) and Codex (`~/.codex/sessions/**/rollout-*.jsonl`) can change their formats at any release; a missing or renamed field degrades to 0 (token/cost simply don't appear) while everything else keeps working.
+- **Codex mapping is best-effort.** Codex's `notify` payload is minimal, so its rollout file is located by session id or by matching working directory and recency. If it can't be matched, Codex token/cost show nothing.
 
 ## Only Claude Code and Codex activity is collected
 

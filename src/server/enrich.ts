@@ -9,13 +9,14 @@
  * REDACTED before being stored or broadcast — the enrichment path must not
  * become a secret-leak bypass around normalize's redaction.
  */
-import { realpathSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
 import { isAbsolute } from "node:path";
 import type { FileChange, NormalizedAgentEvent } from "../core/types";
 import { fingerprint, redactString } from "../core/redaction";
 import type { AgentConsoleDb } from "../db/index";
 import type { LiveMessage } from "./collector";
 import { isWorkTree, lastCommit, numstatFile, type GitRunner } from "./git";
+import { findCodexRollout, readClaudeUsage, readCodexUsage, type Usage } from "./usage";
 
 export type Enricher = (event: NormalizedAgentEvent) => Promise<void>;
 
@@ -48,7 +49,49 @@ export function createEnricher(
   runner: GitRunner,
   emit?: (msg: LiveMessage) => void
 ): Enricher {
+  // Caches so we don't re-walk/re-parse transcripts on every event: the codex
+  // rollout path is resolved once per session, and usage is re-parsed only when
+  // the transcript's mtime changes.
+  const usageCache = new Map<string, { mtime: number; usage: Usage | null }>();
+  const codexPath = new Map<string, string>();
+
+  async function enrichUsage(event: NormalizedAgentEvent) {
+    let path: string | null;
+    if (event.agent === "codex") {
+      path = codexPath.get(event.sessionId) ?? findCodexRollout(event.sessionId, event.repoPath ?? event.cwd);
+      if (path) codexPath.set(event.sessionId, path);
+    } else {
+      path = event.transcriptPath ?? null;
+    }
+    if (!path) return;
+
+    let mtime: number;
+    try {
+      mtime = statSync(path).mtimeMs;
+    } catch {
+      return;
+    }
+    const cached = usageCache.get(path);
+    let usage: Usage | null;
+    if (cached && cached.mtime === mtime) usage = cached.usage;
+    else {
+      usage = event.agent === "codex" ? readCodexUsage(path) : readClaudeUsage(path);
+      usageCache.set(path, { mtime, usage });
+    }
+    if (!usage) return;
+
+    db.updateSessionUsage(event.sessionId, {
+      totalTokens: usage.totalTokens,
+      costUsd: usage.costUsd,
+      model: usage.model,
+    });
+    emit?.({ kind: "event", event, risk: [] });
+  }
+
   return async function enrich(event) {
+    // Token/cost enrichment runs for every event (not just git-enrichable ones).
+    await enrichUsage(event).catch(() => {});
+
     if (!isEnrichable(event)) return;
     const dir = resolveDir(event);
     if (!dir) return;

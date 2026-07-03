@@ -214,6 +214,9 @@ export function normalizeHookEvent(
     output: redactedOutput.redactions.length || Object.keys(rawOutput).length ? redactedOutput : undefined,
     metrics: derivedExit != null ? { exitCode: derivedExit } : undefined,
     links: file ? { files: [file] } : undefined,
+    // Preserved for the server-side usage enricher only (token counts live in
+    // the transcript, not in hook payloads). Never stored.
+    transcriptPath: data.transcript_path || undefined,
   };
 
   return { event, secretKinds, files: file ? [file] : [] };

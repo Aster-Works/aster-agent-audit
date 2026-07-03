@@ -261,6 +261,29 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
     updateFileStatsStmt.run({ id, a: linesAdded, d: linesDeleted });
   }
 
+  // Token/cost usage comes from transcript enrichment, not event metrics, so it
+  // is written straight onto the session (recomputeSession preserves it).
+  const updateUsageStmt = raw.prepare(
+    `update sessions set
+       total_tokens = @tokens,
+       estimated_cost_usd = @cost,
+       model = coalesce(@model, model),
+       updated_at = @upd
+     where id = @id`
+  );
+  function updateSessionUsage(
+    sessionId: string,
+    u: { totalTokens: number; costUsd: number; model?: string }
+  ) {
+    updateUsageStmt.run({
+      id: sessionId,
+      tokens: u.totalTokens > 0 ? u.totalTokens : null,
+      cost: u.costUsd > 0 ? u.costUsd : null,
+      model: u.model ?? null,
+      upd: now(),
+    });
+  }
+
   const enrichEventStmt = raw.prepare(
     `update events set links_json = @links, metrics_json = @metrics,
        title = coalesce(@title, title) where id = @id`
@@ -343,7 +366,8 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
         `update sessions set
            files_changed = @files, commits = @commits, risk_count = @risk,
            tests_passed = @tp, tests_failed = @tf,
-           total_tokens = @tokens, estimated_cost_usd = @cost,
+           total_tokens = case when @tokens > 0 then @tokens else total_tokens end,
+           estimated_cost_usd = case when @cost > 0 then @cost else estimated_cost_usd end,
            max_risk_severity = @maxsev, status = @status,
            ended_at = case when @status = 'active' then ended_at else @last end,
            updated_at = @upd
@@ -356,8 +380,8 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
         risk: Number(agg.risk_count) || 0,
         tp: testsPassed,
         tf: testsFailed,
-        tokens: tokens || null,
-        cost: cost || null,
+        tokens: tokens,
+        cost: cost,
         maxsev: maxSev,
         status,
         last: agg.last_ts ?? null,
@@ -458,6 +482,7 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
     insertRisk,
     insertFileChange,
     updateFileChangeStats,
+    updateSessionUsage,
     enrichEvent,
     deleteSupersededFileChanges,
     recomputeSession,

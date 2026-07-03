@@ -49,7 +49,7 @@ export function Overview() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
         <MetricCard label="Sessions" value={t.sessions} icon={Layers} delta={12} spark={claudeSpark} sparkColor="var(--color-claude)" />
         <MetricCard label="Tokens" value={formatTokens(t.tokens)} icon={Boxes} delta={8} spark={codexSpark} sparkColor="var(--color-codex)" />
-        <MetricCard label="Cost" value={formatUsd(t.costUsd)} icon={CircleDollarSign} delta={-4} accent="var(--color-ink)" footnote="across all repos" />
+        <MetricCard label="Cost" value={formatUsd(t.costUsd)} icon={CircleDollarSign} delta={-4} accent="var(--color-ink)" footnote="estimated · all repos" />
         <MetricCard label="Files Changed" value={t.filesChanged} icon={FileCode2} delta={15} footnote="9 high-churn" />
         <MetricCard label="Tool Calls" value={formatNumber(t.toolCalls)} icon={TerminalSquare} delta={6} footnote="Bash · Edit · Read" />
         <MetricCard label="Risk Findings" value={t.riskFindings} icon={ShieldAlert} accent="var(--color-warn)" footnote="1 critical · 2 high" />

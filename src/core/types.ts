@@ -117,6 +117,11 @@ export type NormalizedAgentEvent = {
   risk?: RiskFinding[];
   links?: EventLinks;
   rawRef?: string;
+  /**
+   * Local transcript path from the hook payload (Claude Code). Transient: used
+   * by the server-side usage enricher to read token counts; never persisted.
+   */
+  transcriptPath?: string;
 };
 
 export type SessionStatus = "active" | "completed" | "failed" | "unknown";
