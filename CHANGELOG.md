@@ -4,6 +4,22 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.11] — 2026-07-04
+
+### Added
+
+- **Act on findings from the Risk Radar.** Each finding now has actions in its
+  detail panel:
+  - **Resolve** — dismiss a reviewed finding; it drops off the radar (and the
+    safety score recovers) while the underlying record stays in Session Replay.
+  - **Delete record** — permanently remove the finding *and* purge the captured
+    event it came from (event + its findings + file changes) — e.g. deleting a
+    "secret detected" record entirely. Confirmation required.
+  - **Ignore this rule** — mute a whole rule via `policy.json` so all of its
+    findings stop surfacing. This is the way to clear MCP config-scan findings
+    (e.g. a hardcoded key in a server env), which reflect current configuration
+    and have no stored record to delete. Undo by editing `policy.json`.
+
 ## [0.1.10] — 2026-07-04
 
 ### Added

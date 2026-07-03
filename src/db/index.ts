@@ -336,6 +336,49 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
     for (const path of paths) deleteFcStmt.run({ sid: sessionId, path, keep: keepEventId });
   }
 
+  // ---- finding resolution / deletion (user acts on Risk Radar) ----------
+  const resolveRiskStmt = raw.prepare(
+    `update risk_findings set status = @status where id = @id`
+  );
+  /** Mark a finding resolved/acknowledged (or reopen). Returns its session id. */
+  function setRiskStatus(id: string, status: "open" | "acknowledged" | "resolved"): string | undefined {
+    const row = raw.prepare(`select session_id from risk_findings where id = ?`).get(id) as
+      | { session_id: string }
+      | undefined;
+    if (!row) return undefined;
+    resolveRiskStmt.run({ id, status });
+    return row.session_id;
+  }
+
+  const deleteRiskStmt = raw.prepare(`delete from risk_findings where id = ?`);
+  /** Delete one finding. Returns its session id and source event id (if any). */
+  function deleteRiskFinding(id: string): { sessionId: string; eventId?: string } | undefined {
+    const row = raw.prepare(`select session_id, event_id from risk_findings where id = ?`).get(id) as
+      | { session_id: string; event_id: string | null }
+      | undefined;
+    if (!row) return undefined;
+    deleteRiskStmt.run(id);
+    return { sessionId: row.session_id, eventId: row.event_id ?? undefined };
+  }
+
+  // Purge a whole event record: the event and everything derived from it
+  // (findings + file changes). Used when the user deletes a captured record
+  // (e.g. a "secret detected" event) rather than just dismissing the finding.
+  const purgeEventTxn = raw.transaction((eventId: string) => {
+    raw.prepare(`delete from risk_findings where event_id = ?`).run(eventId);
+    raw.prepare(`delete from file_changes where event_id = ?`).run(eventId);
+    raw.prepare(`delete from events where id = ?`).run(eventId);
+  });
+  /** Delete an event and its derived rows. Returns the event's session id. */
+  function deleteEvent(eventId: string): string | undefined {
+    const row = raw.prepare(`select session_id from events where id = ?`).get(eventId) as
+      | { session_id: string }
+      | undefined;
+    if (!row) return undefined;
+    purgeEventTxn(eventId);
+    return row.session_id;
+  }
+
   // ---- aggregates --------------------------------------------------------
   function recomputeSession(sessionId: string) {
     const agg = raw
@@ -534,6 +577,9 @@ export function openDb(dbPath: string = DEFAULT_DB_PATH) {
     updateSessionUsage,
     enrichEvent,
     deleteSupersededFileChanges,
+    setRiskStatus,
+    deleteRiskFinding,
+    deleteEvent,
     recomputeSession,
     getSessions,
     getSession,

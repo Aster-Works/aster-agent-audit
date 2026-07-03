@@ -9,7 +9,7 @@
  * parse — that is deferred, not silently dropped (see `note` in the summary is
  * out of scope; documented in HANDOFF.md).
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { AgentName, RiskFinding } from "../core/types";
@@ -84,6 +84,37 @@ export function loadPolicy(configDir = DEFAULT_CONFIG_DIR): ConsolePolicy {
   }
 }
 
+/**
+ * Persist a rule id into `${configDir}/policy.json`'s ignoreRules so that rule's
+ * findings (MCP config *and* event) stop surfacing on the Risk Radar. Advisory
+ * only — the raw DB record is untouched (see policy.ts). Invalidates the scan
+ * cache so the change is visible immediately. Returns the new ignore list.
+ */
+export function addIgnoreRule(ruleId: string, configDir = DEFAULT_CONFIG_DIR): string[] {
+  const path = join(configDir, "policy.json");
+  let raw: Record<string, unknown> = {};
+  try {
+    if (existsSync(path)) raw = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+  } catch {
+    raw = {};
+  }
+  const existing = Array.isArray(raw.ignoreRules)
+    ? (raw.ignoreRules as unknown[]).filter((r): r is string => typeof r === "string")
+    : [];
+  // Guard against junk ids; a rule id looks like AAC-SHELL-002 / AAC-MCP-004.
+  if (!/^[A-Za-z0-9._-]{2,64}$/.test(ruleId)) return existing;
+  const next = existing.includes(ruleId) ? existing : [...existing, ruleId];
+  raw.ignoreRules = next;
+  try {
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(path, JSON.stringify(raw, null, 2));
+  } catch {
+    /* non-fatal: return the intended list even if the write failed */
+  }
+  invalidateMcpCache();
+  return next;
+}
+
 export type McpEnvironmentScan = {
   servers: McpServer[];
   findings: RiskFinding[];
@@ -143,6 +174,11 @@ function runScan(opts: ScanOptions): McpEnvironmentScan {
 // Date.now() in a plain server process (not a workflow) — that's fine here.
 let cache: { at: number; key: string; result: McpEnvironmentScan } | null = null;
 const TTL_MS = 30_000;
+
+/** Drop the cached scan so a policy change (e.g. a new ignore rule) is immediate. */
+export function invalidateMcpCache(): void {
+  cache = null;
+}
 
 export function scanMcpEnvironment(opts: ScanOptions = {}): McpEnvironmentScan {
   // Explicit file lists / injected policy bypass the cache (tests, scan <dir>).

@@ -7,6 +7,9 @@ import {
   ListChecks,
   Grid3x3,
   ArrowRight,
+  Check,
+  Trash2,
+  BellOff,
 } from "lucide-react";
 import {
   RISK_CATEGORIES,
@@ -16,6 +19,7 @@ import {
 import type { RiskSeverity, RiskCategory } from "@core/types";
 import type { McpServer, RiskRow } from "@core/views";
 import { useDataset } from "../data/useDataset";
+import { useAppStore } from "../app/store";
 import { Panel, EmptyState, KeyValue } from "../components/ui";
 import { RiskBadge, CategoryChip, SeverityDot, CATEGORY_ICON, CATEGORY_LABEL } from "../components/RiskBadge";
 import { AgentBadge, AgentDot } from "../components/AgentBadge";
@@ -34,11 +38,48 @@ export function RiskRadar() {
   const navigate = useNavigate();
   const dataset = useDataset();
   const { risk, mcpServers, policyEvents, overview, mcpScan } = dataset;
+  const isLive = useAppStore((s) => s.source) === "live";
+  const loadLive = useAppStore((s) => s.loadLive);
+  const [busy, setBusy] = useState(false);
 
   const [selectedId, setSelectedId] = useState<string>(
     risk.find((r) => r.severity === "critical")?.id ?? risk[0]?.id ?? ""
   );
   const selected = risk.find((r) => r.id === selectedId) ?? risk[0];
+
+  // A finding can be acted on only when it's backed by the local DB — MCP
+  // config-scan findings reflect current config state, not a stored record.
+  const canAct = (r: RiskRow) => isLive && r.sessionId !== "mcp-config-scan";
+
+  async function mutate(path: string, body: object) {
+    setBusy(true);
+    try {
+      await fetch(path, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      setSelectedId("");
+      await loadLive();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const resolveFinding = (r: RiskRow) => mutate("/api/risk-findings/resolve", { id: r.id });
+  const deleteFinding = (r: RiskRow) => {
+    const msg =
+      r.category === "secrets"
+        ? "Delete this record? The finding and the captured event it came from will be permanently removed."
+        : "Delete this record? The finding and its source event will be permanently removed.";
+    if (typeof window !== "undefined" && !window.confirm(msg)) return;
+    return mutate("/api/risk-findings/delete", { id: r.id, purgeEvent: true });
+  };
+  const ignoreRule = (r: RiskRow) => {
+    const msg = `Ignore every "${r.ruleId}" finding? They stop showing on the Risk Radar (raw records are kept). Undo by editing ~/.aster-agent-console/policy.json.`;
+    if (typeof window !== "undefined" && !window.confirm(msg)) return;
+    return mutate("/api/risk-findings/ignore-rule", { ruleId: r.ruleId });
+  };
 
   const counts = useMemo(() => {
     const m = new Map<RiskSeverity, number>();
@@ -136,7 +177,19 @@ export function RiskRadar() {
             )
           }
         >
-          {selected ? <FindingDetails row={selected} /> : <EmptyState icon={ShieldCheck} title="No findings" />}
+          {selected ? (
+            <FindingDetails
+              row={selected}
+              canAct={canAct(selected)}
+              canIgnore={isLive}
+              busy={busy}
+              onResolve={() => resolveFinding(selected)}
+              onDelete={() => deleteFinding(selected)}
+              onIgnore={() => ignoreRule(selected)}
+            />
+          ) : (
+            <EmptyState icon={ShieldCheck} title="No findings" />
+          )}
         </Panel>
       </div>
 
@@ -244,7 +297,24 @@ function FindingRow({
   );
 }
 
-function FindingDetails({ row }: { row: RiskRow }) {
+function FindingDetails({
+  row,
+  canAct,
+  canIgnore,
+  busy,
+  onResolve,
+  onDelete,
+  onIgnore,
+}: {
+  row: RiskRow;
+  canAct: boolean;
+  canIgnore: boolean;
+  busy: boolean;
+  onResolve: () => void;
+  onDelete: () => void;
+  onIgnore: () => void;
+}) {
+  const isMcp = row.sessionId === "mcp-config-scan";
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -280,6 +350,48 @@ function FindingDetails({ row }: { row: RiskRow }) {
         </div>
         <p className="mt-1 text-[12px] leading-relaxed text-ink-2">{row.recommendedAction}</p>
       </div>
+
+      {/* Actions: resolve / delete a stored record, or ignore the whole rule */}
+      {(canAct || canIgnore) && (
+        <div className="space-y-2 border-t border-line pt-3">
+          {canAct && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onResolve}
+                className="inline-flex items-center gap-1.5 rounded-md border border-safe/40 bg-safe/10 px-2.5 py-1.5 text-[12px] font-medium text-safe hover:bg-safe/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Check size={13} /> Resolve
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onDelete}
+                className="inline-flex items-center gap-1.5 rounded-md border border-danger/40 bg-danger/10 px-2.5 py-1.5 text-[12px] font-medium text-danger hover:bg-danger/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Trash2 size={13} /> Delete record
+              </button>
+              <span className="ml-auto text-[10px] text-ink-3">Resolve dismisses; Delete purges the record.</span>
+            </div>
+          )}
+          {isMcp && (
+            <p className="text-[11px] leading-snug text-ink-3">
+              This reflects your current MCP configuration — fix the config to clear it, or ignore the rule below.
+            </p>
+          )}
+          {canIgnore && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onIgnore}
+              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[11px] font-medium text-ink-2 hover:border-ink-3/40 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <BellOff size={12} /> Ignore this rule ({row.ruleId})
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -20,6 +20,7 @@ import { openDb, type AgentConsoleDb, DEFAULT_DB_PATH, DEFAULT_CONFIG_DIR } from
 import { createCollector, type LiveMessage } from "./collector";
 import { createCodexImporter } from "./codex-import";
 import { assembleDataset } from "./dataset";
+import { addIgnoreRule } from "./mcp-scan";
 import { loadConfig, saveConfig, PRICING_FAMILIES } from "./config";
 import { applyPricingOverrides, getPricing } from "./usage";
 import { hooksStatus } from "../cli/hooks/installer";
@@ -171,6 +172,58 @@ export function createServer(opts: ServerOptions = {}) {
   });
   app.get("/api/sessions/:id/events", (c) => c.json(db.getEvents(c.req.param("id"))));
   app.get("/api/risk-findings", (c) => c.json(db.getRisk()));
+
+  // Dismiss a finding: mark it resolved so it drops off the Risk Radar. The
+  // underlying event record is left intact (still visible in Session Replay).
+  app.post("/api/risk-findings/resolve", async (c) => {
+    let body: { id?: string; status?: "open" | "acknowledged" | "resolved" };
+    try {
+      body = (await c.req.json()) as typeof body;
+    } catch {
+      return c.json({ ok: false, error: "invalid JSON" }, 400);
+    }
+    if (!body.id) return c.json({ ok: false, error: "missing id" }, 400);
+    const sessionId = db.setRiskStatus(body.id, body.status ?? "resolved");
+    if (!sessionId) return c.json({ ok: false, error: "not found" }, 404);
+    db.recomputeSession(sessionId);
+    return c.json({ ok: true });
+  });
+
+  // Delete a finding. With { purgeEvent: true } and a finding tied to a stored
+  // event, the whole event record is purged (event + its findings + file
+  // changes) — e.g. removing a captured "secret detected" record entirely.
+  app.post("/api/risk-findings/delete", async (c) => {
+    let body: { id?: string; purgeEvent?: boolean };
+    try {
+      body = (await c.req.json()) as typeof body;
+    } catch {
+      return c.json({ ok: false, error: "invalid JSON" }, 400);
+    }
+    if (!body.id) return c.json({ ok: false, error: "missing id" }, 400);
+    const deleted = db.deleteRiskFinding(body.id);
+    if (!deleted) return c.json({ ok: false, error: "not found" }, 404);
+    let purged = false;
+    if (body.purgeEvent && deleted.eventId) {
+      purged = db.deleteEvent(deleted.eventId) != null;
+    }
+    db.recomputeSession(deleted.sessionId);
+    return c.json({ ok: true, purgedEvent: purged });
+  });
+
+  // Ignore a rule everywhere: adds it to policy.json ignoreRules so all its
+  // findings (MCP config + event) stop surfacing. For MCP/config-state findings
+  // this is the way to clear them — there's no stored record to delete.
+  app.post("/api/risk-findings/ignore-rule", async (c) => {
+    let body: { ruleId?: string };
+    try {
+      body = (await c.req.json()) as typeof body;
+    } catch {
+      return c.json({ ok: false, error: "invalid JSON" }, 400);
+    }
+    if (!body.ruleId) return c.json({ ok: false, error: "missing ruleId" }, 400);
+    const ignoreRules = addIgnoreRule(body.ruleId);
+    return c.json({ ok: true, ignoreRules });
+  });
   app.get("/api/repo-activity", (c) => {
     const ds = assembleDataset(db, status());
     return ds ? c.json(ds.repoActivity) : c.json({ empty: true });

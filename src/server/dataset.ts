@@ -39,7 +39,11 @@ export function assembleDataset(db: AgentConsoleDb, status: CollectorStatus): Da
   }));
 
   // ignoreRules also hides matching event findings, not just MCP ones.
-  const dbRisk = applyPolicy(db.getRisk(), mcp.policy);
+  // Resolved findings are dismissed by the user → excluded from the radar.
+  const dbRisk = applyPolicy(
+    db.getRisk().filter((r) => r.status !== "resolved"),
+    mcp.policy
+  );
   const risk = [...mcpRows, ...dbRisk];
 
   const fileChanges = db.getFileChanges();
