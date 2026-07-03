@@ -58,10 +58,12 @@ export function RiskRadarChart({
   data,
   height = 240,
   color = "var(--color-danger)",
+  fillOpacity = 0.22,
 }: {
   data: { label: string; score: number }[];
   height?: number;
   color?: string;
+  fillOpacity?: number;
 }) {
   return (
     <div style={{ height, width: "100%" }}>
@@ -76,9 +78,9 @@ export function RiskRadarChart({
           <Radar
             dataKey="score"
             stroke={color}
-            strokeWidth={1.5}
+            strokeWidth={2}
             fill={color}
-            fillOpacity={0.22}
+            fillOpacity={fillOpacity}
             isAnimationActive={false}
           />
           <Tooltip contentStyle={TOOLTIP_STYLE} cursor={false} />

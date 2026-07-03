@@ -5,7 +5,6 @@ import {
   ShieldCheck,
   Plug,
   ListChecks,
-  Radar as RadarIcon,
   Grid3x3,
   ArrowRight,
 } from "lucide-react";
@@ -49,6 +48,10 @@ export function RiskRadar() {
 
   const cleanEvents = Math.max(0, overview.totals.toolCalls - risk.length);
   const radar = radarScores(risk, RISK_CATEGORIES);
+  // Safety surface: invert risk so a fully safe setup reads as a big, full
+  // green hexagon. Categories with findings dip inward.
+  const safety = computeSafety(risk);
+  const safetyRadar = radar.map((r) => ({ ...r, score: Math.max(0, 100 - r.score) }));
 
   const sorted = [...risk].sort(
     (a, b) => SEVERITY_ORDER.indexOf(b.severity) - SEVERITY_ORDER.indexOf(a.severity)
@@ -94,10 +97,21 @@ export function RiskRadar() {
           </div>
         </Panel>
 
-        {/* Radar + matrix */}
+        {/* Safety surface + matrix */}
         <div className="flex flex-col gap-4">
-          <Panel title="Risk Surface" icon={RadarIcon} subtitle="Weighted exposure by category">
-            <RiskRadarChart data={radar} height={236} />
+          <Panel
+            title="Safety Surface"
+            icon={safety.safe ? ShieldCheck : ShieldAlert}
+            iconColor={safety.color}
+            subtitle="Fuller and greener means safer"
+          >
+            <SafetyHeadline safety={safety} findings={risk.length} />
+            <RiskRadarChart
+              data={safetyRadar}
+              height={196}
+              color={safety.color}
+              fillOpacity={safety.safe ? 0.34 : 0.2}
+            />
           </Panel>
           <Panel title="Risk Matrix" icon={Grid3x3} subtitle="Category × severity">
             <RiskMatrix risk={risk} />
@@ -271,6 +285,51 @@ function FindingDetails({ row }: { row: RiskRow }) {
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-ink-3">{children}</div>;
+}
+
+const SAFETY_PENALTY: Record<RiskSeverity, number> = {
+  info: 0,
+  low: 2,
+  medium: 7,
+  high: 15,
+  critical: 25,
+};
+
+type Safety = { score: number; grade: string; color: string; label: string; safe: boolean };
+
+/** Overall safety = 100 minus severity-weighted penalties. High score → green. */
+function computeSafety(rows: RiskRow[]): Safety {
+  const penalty = rows.reduce((a, r) => a + SAFETY_PENALTY[r.severity], 0);
+  const score = Math.max(0, 100 - penalty);
+  const grade = score >= 90 ? "A" : score >= 75 ? "B" : score >= 60 ? "C" : score >= 40 ? "D" : "F";
+  const color =
+    score >= 80 ? "var(--color-safe)" : score >= 55 ? "var(--color-warn)" : "var(--color-danger)";
+  const urgent = rows.filter((r) => r.severity === "critical" || r.severity === "high").length;
+  const label = rows.length === 0 ? "All clear" : urgent > 0 ? `${urgent} to address` : "Minor only";
+  return { score, grade, color, label, safe: score >= 80 };
+}
+
+function SafetyHeadline({ safety, findings }: { safety: Safety; findings: number }) {
+  return (
+    <div className="mb-1 flex items-center justify-between">
+      <div className="flex items-baseline gap-1.5">
+        <span className="aac-tnum text-[30px] font-bold leading-none" style={{ color: safety.color }}>
+          {safety.score}
+        </span>
+        <span className="text-[12px] text-ink-3">/100</span>
+        <span className="ml-1 text-[15px] font-semibold" style={{ color: safety.color }}>
+          {safety.grade}
+        </span>
+      </div>
+      <div
+        className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+        style={{ color: safety.color, background: `color-mix(in srgb, ${safety.color} 14%, transparent)` }}
+      >
+        {safety.safe ? <ShieldCheck size={13} /> : <ShieldAlert size={13} />}
+        {findings === 0 ? "All clear" : safety.label}
+      </div>
+    </div>
+  );
 }
 
 function RiskMatrix({ risk }: { risk: RiskRow[] }) {
