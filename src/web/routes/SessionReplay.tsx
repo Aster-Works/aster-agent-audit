@@ -38,9 +38,14 @@ import {
 
 type TrackKey = "user" | "agent" | "shell" | "files" | "tests" | "git";
 
-const PX_PER_MIN = 30;
-const TRACK_H = 40;
-const LABEL_GUTTER = 96;
+// Vertical timeline: lanes are columns (lifelines), time flows top → bottom,
+// each event is a dot on its lane with a pill extending to the right.
+const PX_PER_MIN = 24; // vertical px per elapsed minute
+const MIN_GAP = 38; // never let two event rows overlap
+const LANE_W = 60; // horizontal spacing between lane lines
+const LANE_GUTTER = 56; // left gutter (clock labels) before the first lane
+const HEADER_H = 34;
+const MIN_W = 560;
 
 export function SessionReplay() {
   const t = useT();
@@ -70,39 +75,28 @@ export function SessionReplay() {
   ];
 
   const start = new Date(session.startedAt).getTime();
-  const end = new Date(session.endedAt ?? events[events.length - 1]?.timestamp ?? session.startedAt).getTime();
-  const totalMin = Math.max(1, (end - start) / 60000);
+  const laneX = (i: number) => LANE_GUTTER + i * LANE_W;
+  const laneOf = (e: NormalizedAgentEvent) =>
+    Math.max(0, tracks.findIndex((tr) => tr.key === trackForEvent(e, session.agent)));
 
-  function offsetPx(iso: string): number {
-    return ((new Date(iso).getTime() - start) / 60000) * PX_PER_MIN + LABEL_GUTTER;
-  }
-
-  // Per-track declustering: place each event at its time-based x, but never
-  // closer than MIN_GAP to the previous event on the same track so pills never
-  // overlap. The playhead aligns to the rendered (declustered) position.
-  const layoutX = useMemo(() => {
-    const MIN_GAP = 120;
+  // Time flows downward. Events are declustered GLOBALLY (not per-lane) because
+  // a pill spans to the right edge — two events sharing a y would overlap.
+  const layoutY = useMemo(() => {
     const map = new Map<string, number>();
-    const keys: TrackKey[] = ["user", "agent", "shell", "files", "tests", "git"];
-    for (const key of keys) {
-      const list = events
-        .filter((e) => trackForEvent(e, session.agent) === key)
-        .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      let prev = -Infinity;
-      for (const e of list) {
-        let x = offsetPx(e.timestamp);
-        if (x < prev + MIN_GAP) x = prev + MIN_GAP;
-        map.set(e.id, x);
-        prev = x;
-      }
+    let prev = -Infinity;
+    for (const e of [...events].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    )) {
+      const timeY = ((new Date(e.timestamp).getTime() - start) / 60000) * PX_PER_MIN + 22;
+      const y = Math.max(timeY, prev + MIN_GAP);
+      map.set(e.id, y);
+      prev = y;
     }
     return map;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events, start, session.agent]);
+  }, [events, start]);
 
-  const maxX = layoutX.size ? Math.max(...layoutX.values()) : LABEL_GUTTER;
-  const width = Math.max(640, maxX + 230);
-  const selectedX = selected ? layoutX.get(selected.id) ?? offsetPx(selected.timestamp) : 0;
+  const contentH = (layoutY.size ? Math.max(...layoutY.values()) : 0) + 56;
+  const selectedY = selected ? layoutY.get(selected.id) ?? 0 : 0;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -136,78 +130,75 @@ export function SessionReplay() {
               {t("Pick a session with a recorded timeline (e.g. “Implement session orchestration”).")}
             </EmptyState>
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto p-4">
-              <div className="relative" style={{ width }}>
-                {/* Track labels (sticky left) */}
-                <div className="pointer-events-none absolute left-0 top-7 z-20 flex flex-col">
-                  {tracks.map((tr) => (
-                    <div
-                      key={tr.key}
-                      style={{ height: TRACK_H }}
-                      className="flex items-center"
-                    >
-                      <span className="flex items-center gap-1.5 rounded-md border border-line bg-surface/90 px-2 py-1 text-[11px] font-medium text-ink-2 backdrop-blur">
-                        <tr.icon size={12} style={{ color: tr.color }} />
-                        {tr.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-auto">
+              {/* Lane headers — stay pinned while the timeline scrolls down */}
+              <div
+                className="sticky top-0 z-30 border-b border-line bg-surface"
+                style={{ height: HEADER_H, minWidth: MIN_W }}
+              >
+                {tracks.map((tr, i) => (
+                  <div
+                    key={tr.key}
+                    className="absolute top-0 flex h-full items-center gap-1"
+                    style={{ left: laneX(i) - 5 }}
+                  >
+                    <tr.icon size={11} className="shrink-0" style={{ color: tr.color }} />
+                    <span className="whitespace-nowrap text-[10px] font-medium text-ink-2">
+                      {t(tr.label)}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-                {/* Ruler */}
-                <div className="relative mb-1 h-6 border-b border-line">
-                  {Array.from({ length: Math.ceil(totalMin / 5) + 1 }, (_, i) => i * 5).map((m) => (
-                    <div
-                      key={m}
-                      className="absolute top-0 flex h-6 flex-col items-center"
-                      style={{ left: m * PX_PER_MIN + LABEL_GUTTER }}
-                    >
-                      <span className="aac-tnum text-[10px] text-ink-3">{t("+{m}m", { m })}</span>
-                      <span className="mt-0.5 h-2 w-px bg-line" />
-                    </div>
-                  ))}
-                </div>
+              {/* Canvas: lifelines + event rows */}
+              <div className="relative" style={{ height: contentH, minWidth: MIN_W }}>
+                {/* Lifelines (vertical). Drawn ABOVE the pills so a lane reads as
+                    one continuous line running through the events it owns. */}
+                {tracks.map((tr, i) => (
+                  <div
+                    key={tr.key}
+                    className="pointer-events-none absolute bottom-0 top-0 z-[15] w-px bg-line"
+                    style={{ left: laneX(i) }}
+                  />
+                ))}
 
-                {/* Playhead */}
+                {/* Playhead (horizontal, at the selected event) */}
                 {selected && (
                   <div
-                    className="pointer-events-none absolute z-10"
-                    style={{ left: selectedX, top: 24, bottom: 0 }}
-                  >
-                    <div className="h-full w-px" style={{ background: "var(--color-sel)" }} />
-                    <div
-                      className="absolute -left-1 -top-1 h-2 w-2 rotate-45"
-                      style={{ background: "var(--color-sel)" }}
-                    />
-                  </div>
+                    className="pointer-events-none absolute left-0 right-0 z-10 h-px"
+                    style={{ top: selectedY, background: "var(--color-sel)" }}
+                  />
                 )}
 
-                {/* Track rows */}
-                <div className="relative">
-                  {tracks.map((tr, ri) => (
-                    <div
-                      key={tr.key}
-                      className={cn(
-                        "relative border-b border-line-soft",
-                        ri % 2 === 1 && "bg-surface/30"
-                      )}
-                      style={{ height: TRACK_H }}
-                    >
-                      {events
-                        .filter((e) => trackForEvent(e, session.agent) === tr.key)
-                        .map((e) => (
-                          <EventPill
-                            key={e.id}
-                            event={e}
-                            left={layoutX.get(e.id) ?? offsetPx(e.timestamp)}
-                            color={tr.color}
-                            selected={e.id === selectedId}
-                            onClick={() => setSelectedId(e.id)}
-                          />
-                        ))}
+                {events.map((e) => {
+                  const i = laneOf(e);
+                  const y = layoutY.get(e.id) ?? 0;
+                  const tr = tracks[i];
+                  return (
+                    <div key={e.id}>
+                      {/* elapsed clock in the left gutter */}
+                      <span
+                        className="aac-tnum pointer-events-none absolute -translate-y-1/2 text-[9px] text-ink-3"
+                        style={{ left: 4, top: y }}
+                      >
+                        {formatClock(e.timestamp)}
+                      </span>
+                      {/* dot on the lifeline */}
+                      <span
+                        className="pointer-events-none absolute z-30 h-[9px] w-[9px] -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-bg"
+                        style={{ left: laneX(i), top: y, borderColor: tr.color }}
+                      />
+                      <EventPill
+                        event={e}
+                        top={y}
+                        left={laneX(i) + 12}
+                        color={tr.color}
+                        selected={e.id === selectedId}
+                        onClick={() => setSelectedId(e.id)}
+                      />
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -265,12 +256,14 @@ function trackForEvent(e: NormalizedAgentEvent, _agent: string): TrackKey {
 
 function EventPill({
   event,
+  top,
   left,
   color,
   selected,
   onClick,
 }: {
   event: NormalizedAgentEvent;
+  top: number;
   left: number;
   color: string;
   selected: boolean;
@@ -284,9 +277,11 @@ function EventPill({
       type="button"
       onClick={onClick}
       title={event.title}
-      className="absolute top-1/2 flex max-w-[200px] -translate-y-1/2 items-center gap-1 rounded-md border px-1.5 py-1 text-[11px] transition-colors hover:z-10"
+      className="absolute z-10 flex -translate-y-1/2 items-center gap-1 rounded-md border px-2 py-1 text-left text-[11px] transition-colors hover:z-20"
       style={{
+        top,
         left,
+        right: 12,
         color: "var(--color-ink)",
         borderColor: ring === "transparent" ? `color-mix(in srgb, ${color} 38%, transparent)` : ring,
         background: `color-mix(in srgb, ${isRisk ? "var(--color-danger)" : color} ${selected ? 26 : 14}%, var(--color-surface))`,
@@ -296,6 +291,9 @@ function EventPill({
       {isRisk && <ShieldAlert size={11} className="shrink-0" style={{ color: "var(--color-danger)" }} />}
       {sev && <span className="sr-only">{sev}</span>}
       <span className="aac-truncate">{event.title}</span>
+      {event.toolName && (
+        <span className="ml-auto shrink-0 pl-2 font-mono text-[9px] text-ink-3">{event.toolName}</span>
+      )}
     </button>
   );
 }

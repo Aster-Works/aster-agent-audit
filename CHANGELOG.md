@@ -4,6 +4,20 @@ All notable changes to Aster Agent Console are documented here. The format is
 based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.16] — 2026-07-04
+
+### Changed
+
+- **Session Replay is now a vertical timeline.** Lanes (User / agent / Shell /
+  Files / Tests / Git) are vertical lifelines and time flows top-to-bottom — each
+  event is a dot on its lane with a pill extending to the right, so the whole
+  session reads by scrolling down instead of sideways. **Horizontal scrolling is
+  gone.** Lane headers stay pinned while you scroll, each row shows its clock
+  time, and selecting an event draws a playhead across the timeline.
+- The old time ruler was removed: rows are de-clustered so they never overlap, so
+  a fixed ruler would have drifted from the real timestamps. Each row now carries
+  its own timestamp instead.
+
 ## [0.1.15] — 2026-07-04
 
 ### Changed
