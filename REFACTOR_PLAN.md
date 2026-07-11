@@ -220,3 +220,8 @@ Definition of done per the brief §17; every phase lands green
   (§2). Revisit if `packages/` consumers appear (Pro extension).
 - 2026-07-11: New runtime dependency budget for the whole refactor: exactly one
   (TOML parser, Phase 4). Everything else uses stdlib/node/existing deps.
+- 2026-07-11 (later): Phase 2 "reporting interfaces" deliberately deferred to
+  Phase 5 — a types-only module with no consumer is dead code; the types land
+  with the SARIF/HTML implementations that consume them. Integrity's PURE core
+  (canonicalize / computeEventHash / verifyChain) was pulled forward instead:
+  it is fully testable without DB changes and de-risks Phase 3.
