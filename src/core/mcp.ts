@@ -459,5 +459,11 @@ export function scoreFindings(findings: { severity: RiskSeverity }[]): { score: 
 
 /** Read-only catalog of the active MCP-risk rules (for the Settings UI). */
 export function mcpRuleCatalog(): { ruleId: string; category: RiskFinding["category"]; severity: RiskSeverity; title: string }[] {
-  return MCP_RULES.map((r) => ({ ruleId: r.ruleId, category: r.category, severity: r.severity, title: r.title }));
+  // REMOTE_RULE (AAC-MCP-005) is detected inline in scanMcpServers because it
+  // is policy-aware, but it IS one of the shipped rules — the catalog was
+  // silently one short before it was appended here.
+  return [
+    ...MCP_RULES.map((r) => ({ ruleId: r.ruleId, category: r.category, severity: r.severity, title: r.title })),
+    { ruleId: REMOTE_RULE.ruleId, category: REMOTE_RULE.category, severity: REMOTE_RULE.severity, title: REMOTE_RULE.title },
+  ].sort((a, b) => a.ruleId.localeCompare(b.ruleId));
 }

@@ -5,7 +5,7 @@
  * the DB. A malformed payload degrades to a best-effort event, never a throw.
  */
 import type { AgentName, EventSource, FileChange, NormalizedAgentEvent, RiskFinding } from "../core/types";
-import { normalizeHookEvent } from "../core/normalize";
+import { getAdapter } from "../core/adapters/index";
 import { detectEventRisks } from "../core/risk";
 import { fingerprint } from "../core/redaction";
 import type { AgentConsoleDb } from "../db/index";
@@ -36,7 +36,9 @@ export function createCollector(
     payload: unknown,
     opts?: { id?: string; source?: EventSource }
   ): IngestResult {
-    const { event, secretKinds, files } = normalizeHookEvent(agentHint, payload, opts);
+    // Adapter boundary: agent-specific normalization (redaction included)
+    // happens here; everything below is agent-agnostic.
+    const { event, secretKinds, files } = getAdapter(agentHint).normalize(payload, opts);
     const findings = detectEventRisks(
       event,
       event.input?.value as Record<string, unknown> | undefined,
