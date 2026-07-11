@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ShieldAlert,
@@ -11,16 +11,18 @@ import {
   KeyRound,
   ExternalLink,
   RotateCcw,
+  EyeOff,
 } from "lucide-react";
 import {
   RISK_CATEGORIES,
   SEVERITY_ORDER,
   AGENT_LABELS,
 } from "@core/types";
-import type { RiskSeverity, RiskCategory } from "@core/types";
+import type { RiskSeverity, RiskCategory, AgentName } from "@core/types";
 import type { McpServer, RiskRow } from "@core/views";
 import { useDataset } from "../data/useDataset";
 import { useAppStore } from "../app/store";
+import { fetchMcpInventory, type McpInventoryResponse, type McpInventoryRow, type McpInventoryDiff } from "../data/source";
 import { Panel, EmptyState, KeyValue } from "../components/ui";
 import { RiskBadge, CategoryChip, SeverityDot, CATEGORY_ICON, CATEGORY_LABEL } from "../components/RiskBadge";
 import { AgentBadge, AgentDot } from "../components/AgentBadge";
@@ -36,6 +38,22 @@ import {
 import { computeSafety, toSafetyRadar, type Safety } from "../lib/safety";
 import { useT } from "../lib/i18n";
 
+/** Finding lifecycle (v3, mirrors `FindingStatus` in `src/db/index.ts`). */
+type FindingStatus = "open" | "acknowledged" | "resolved" | "accepted-risk" | "false-positive";
+const CLOSED_STATUSES: ReadonlySet<FindingStatus> = new Set(["resolved", "accepted-risk", "false-positive"]);
+const CLOSED_STATUS_META: Record<string, { label: string; colorVar: string }> = {
+  resolved: { label: "Resolved", colorVar: "var(--color-safe)" },
+  "accepted-risk": { label: "Accepted risk", colorVar: "var(--color-warn)" },
+  "false-positive": { label: "False positive", colorVar: "var(--color-ink-3)" },
+};
+const STATUS_LABEL: Record<string, string> = {
+  open: "Open",
+  acknowledged: "Acknowledged",
+  resolved: "Resolved",
+  "accepted-risk": "Accepted risk",
+  "false-positive": "False positive",
+};
+
 export function RiskRadar() {
   const t = useT();
   const navigate = useNavigate();
@@ -44,6 +62,18 @@ export function RiskRadar() {
   const isLive = useAppStore((s) => s.source) === "live";
   const loadLive = useAppStore((s) => s.loadLive);
   const [busy, setBusy] = useState(false);
+
+  // MCP inventory: fetched directly (not part of the filtered Dataset) — a
+  // fetch failure (offline collector, demo mode) just means no inventory to
+  // show, so it degrades to an empty state rather than fake demo rows.
+  const [mcpInventory, setMcpInventory] = useState<McpInventoryResponse | null>(null);
+  useEffect(() => {
+    let ok = true;
+    fetchMcpInventory().then((r) => ok && setMcpInventory(r));
+    return () => {
+      ok = false;
+    };
+  }, [isLive]);
 
   const [selectedId, setSelectedId] = useState<string>(
     risk.find((r) => r.severity === "critical")?.id ?? risk[0]?.id ?? ""
@@ -67,12 +97,13 @@ export function RiskRadar() {
       setBusy(false);
     }
   }
-  const setStatus = (r: RiskRow, status: "open" | "resolved") =>
-    mutate("/api/risk-findings/resolve", { id: r.id, status });
+  const setStatus = (r: RiskRow, status: FindingStatus, note?: string) =>
+    mutate("/api/risk-findings/resolve", { id: r.id, status, note });
 
-  // Active (unresolved) findings drive the score, counters and radar; resolved
-  // ones stay in the list but marked, so you can see what you've handled.
-  const active = useMemo(() => risk.filter((r) => r.status !== "resolved"), [risk]);
+  // Active findings (not closed by any of the three terminal states) drive
+  // the score, counters and radar; closed ones stay in the list but marked,
+  // so you can see what you've handled — and how.
+  const active = useMemo(() => risk.filter((r) => !CLOSED_STATUSES.has(r.status)), [risk]);
   const resolvedCount = risk.length - active.length;
 
   const counts = useMemo(() => {
@@ -89,10 +120,10 @@ export function RiskRadar() {
   const safety = computeSafety(active);
   const safetyRadar = toSafetyRadar(radar);
 
-  // Active first (by severity), resolved last.
+  // Active first (by severity), closed (resolved/accepted-risk/false-positive) last.
   const sorted = [...risk].sort((a, b) => {
-    const ar = a.status === "resolved" ? 1 : 0;
-    const br = b.status === "resolved" ? 1 : 0;
+    const ar = CLOSED_STATUSES.has(a.status) ? 1 : 0;
+    const br = CLOSED_STATUSES.has(b.status) ? 1 : 0;
     if (ar !== br) return ar - br;
     return SEVERITY_ORDER.indexOf(b.severity) - SEVERITY_ORDER.indexOf(a.severity);
   });
@@ -185,7 +216,7 @@ export function RiskRadar() {
               row={selected}
               canResolve={canResolve(selected)}
               busy={busy}
-              onSetStatus={(status) => setStatus(selected, status)}
+              onSetStatus={(status, note) => setStatus(selected, status, note)}
             />
           ) : (
             <EmptyState icon={ShieldCheck} title={t("No findings")} />
@@ -235,6 +266,32 @@ export function RiskRadar() {
           </div>
         </Panel>
       </div>
+
+      {/* MCP inventory: every server ever seen across config scans, with
+          change detection against the previous scan. */}
+      <Panel
+        title={t("MCP Inventory")}
+        icon={Plug}
+        subtitle={
+          mcpInventory
+            ? t("{n} known servers · {added} new · {changed} changed · {removed} removed", {
+                n: mcpInventory.inventory.length,
+                added: mcpInventory.diff.added.length,
+                changed: mcpInventory.diff.changed.length,
+                removed: mcpInventory.diff.removed.length,
+              })
+            : t("Servers and their config fingerprints, tracked across scans")
+        }
+        noBodyPadding
+      >
+        {mcpInventory === null ? (
+          <EmptyState icon={Plug} title={t("Available once connected to the live collector")} />
+        ) : mcpInventory.inventory.length === 0 ? (
+          <EmptyState icon={ShieldCheck} title={t("No MCP servers configured")} />
+        ) : (
+          <McpInventoryTable inventory={mcpInventory.inventory} diff={mcpInventory.diff} />
+        )}
+      </Panel>
     </div>
   );
 }
@@ -265,9 +322,8 @@ function FindingRow({
   selected: boolean;
   onClick: () => void;
 }) {
-  const t = useT();
   const Icon = CATEGORY_ICON[row.category];
-  const isResolved = row.status === "resolved";
+  const closed = CLOSED_STATUSES.has(row.status);
   return (
     <button
       type="button"
@@ -275,7 +331,7 @@ function FindingRow({
       className={cn(
         "flex w-full min-w-0 items-start gap-2.5 border-b border-line/60 px-3 py-2.5 text-left transition-colors last:border-b-0 hover:bg-surface-2",
         selected && "bg-surface-2",
-        isResolved && "opacity-55"
+        closed && "opacity-55"
       )}
       style={selected ? { boxShadow: `inset 2px 0 0 ${SEVERITY_COLOR_VAR[row.severity]}` } : undefined}
     >
@@ -287,16 +343,10 @@ function FindingRow({
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className={cn("aac-truncate text-[12.5px] font-medium text-ink", isResolved && "line-through")}>
+          <span className={cn("aac-truncate text-[12.5px] font-medium text-ink", closed && "line-through")}>
             {row.title}
           </span>
-          {isResolved ? (
-            <span className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-safe" style={{ background: "color-mix(in srgb, var(--color-safe) 14%, transparent)" }}>
-              <Check size={10} /> {t("Resolved")}
-            </span>
-          ) : (
-            <RiskBadge severity={row.severity} />
-          )}
+          {closed ? <ClosedStatusBadge status={row.status} /> : <RiskBadge severity={row.severity} />}
         </div>
         <div className="mt-1 flex items-center gap-2 text-[10px] text-ink-3">
           <AgentDot agent={row.agent} />
@@ -306,6 +356,20 @@ function FindingRow({
         </div>
       </div>
     </button>
+  );
+}
+
+/** Closed-state badge — same shape as the old "Resolved" pill, colored per status. */
+function ClosedStatusBadge({ status }: { status: string }) {
+  const t = useT();
+  const meta = CLOSED_STATUS_META[status] ?? CLOSED_STATUS_META.resolved;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+      style={{ color: meta.colorVar, background: `color-mix(in srgb, ${meta.colorVar} 14%, transparent)` }}
+    >
+      <Check size={10} /> {t(meta.label)}
+    </span>
   );
 }
 
@@ -378,13 +442,23 @@ function FindingDetails({
   row: RiskRow;
   canResolve: boolean;
   busy: boolean;
-  onSetStatus: (status: "open" | "resolved") => void;
+  onSetStatus: (status: FindingStatus, note?: string) => void;
 }) {
   const t = useT();
   const isMcp = row.sessionId === "mcp-config-scan";
-  const isResolved = row.status === "resolved";
+  const isClosed = CLOSED_STATUSES.has(row.status);
   const isSecret = row.category === "secrets";
   const rotate = isSecret ? rotationTarget(row) : null;
+
+  // Closing a finding (resolve / accept risk / false positive) is the moment
+  // that matters for the audit trail, so it's the only action that prompts
+  // for a note. `window.prompt` is deliberately minimal — this is an audit
+  // tool, not a form builder; a cancelled prompt aborts the status change.
+  function close(status: FindingStatus) {
+    const input = window.prompt(t("Add a note (optional)"));
+    if (input === null) return;
+    onSetStatus(status, input.trim() || undefined);
+  }
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-2">
@@ -398,7 +472,7 @@ function FindingDetails({
         <KeyValue label={t("Agent")}>{AGENT_LABELS[row.agent]}</KeyValue>
         <KeyValue label={t("Time")} mono>{formatClock(row.timestamp)}</KeyValue>
         <KeyValue label={t("Status")}>
-          <span className="capitalize">{row.status}</span>
+          <span>{t(STATUS_LABEL[row.status] ?? row.status)}</span>
         </KeyValue>
       </div>
 
@@ -449,29 +523,50 @@ function FindingDetails({
         </div>
       )}
 
-      {/* Resolve / reopen — never delete. Marks a reviewed finding as handled. */}
+      {/* Resolve / accept risk / false positive / reopen — never delete.
+          Marks a reviewed finding as handled, with a reason. */}
       {canResolve ? (
-        <div className="flex items-center gap-2 border-t border-line pt-3">
-          {isResolved ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onSetStatus("open")}
-              className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] font-medium text-ink-2 hover:border-ink-3/40 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <RotateCcw size={13} /> {t("Reopen")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => onSetStatus("resolved")}
-              className="inline-flex items-center gap-1.5 rounded-md border border-safe/40 bg-safe/10 px-2.5 py-1.5 text-[12px] font-medium text-safe hover:bg-safe/20 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <Check size={13} /> {t("Mark resolved")}
-            </button>
-          )}
-          <span className="ml-auto text-[10px] text-ink-3">{t("Marks it handled — the record is kept, never deleted.")}</span>
+        <div className="space-y-1.5 border-t border-line pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {isClosed ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onSetStatus("open")}
+                className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] font-medium text-ink-2 hover:border-ink-3/40 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RotateCcw size={13} /> {t("Reopen")}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => close("resolved")}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-safe/40 bg-safe/10 px-2.5 py-1.5 text-[12px] font-medium text-safe hover:bg-safe/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Check size={13} /> {t("Mark resolved")}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => close("accepted-risk")}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-warn/40 bg-warn/10 px-2.5 py-1.5 text-[12px] font-medium text-warn hover:bg-warn/20 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ShieldAlert size={13} /> {t("Accept risk")}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => close("false-positive")}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-line bg-surface-2 px-2.5 py-1.5 text-[12px] font-medium text-ink-2 hover:border-ink-3/40 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <EyeOff size={13} /> {t("False positive")}
+                </button>
+              </>
+            )}
+          </div>
+          <p className="text-[10px] text-ink-3">{t("Marks it handled — the record is kept, never deleted.")}</p>
         </div>
       ) : (
         isMcp && (
@@ -648,6 +743,124 @@ function McpMap({ servers }: { servers: McpServer[] }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+const KNOWN_AGENTS = new Set<string>(Object.keys(AGENT_LABELS));
+const DIFF_BADGE_META: Record<"added" | "changed" | "removed", { label: string; colorVar: string; hint: string }> = {
+  added: { label: "new", colorVar: "var(--color-safe)", hint: "First seen in the latest scan" },
+  changed: { label: "changed", colorVar: "var(--color-warn)", hint: "Definition changed since the last scan" },
+  removed: { label: "removed", colorVar: "var(--color-ink-3)", hint: "Not seen in the latest scan" },
+};
+
+/** Identify a row for diff matching — mirrors the (name, sourceFile) key in `src/db`. */
+function inventoryKey(r: { name: string; sourceFile: string }): string {
+  return `${r.name}\u0000${r.sourceFile}`;
+}
+
+function diffKind(row: McpInventoryRow, diff: McpInventoryDiff): "added" | "changed" | "removed" | null {
+  const k = inventoryKey(row);
+  if (diff.added.some((r) => inventoryKey(r) === k)) return "added";
+  if (diff.changed.some((c) => inventoryKey(c.after) === k)) return "changed";
+  if (diff.removed.some((r) => inventoryKey(r) === k)) return "removed";
+  return null;
+}
+
+function DiffBadge({ kind }: { kind: "added" | "changed" | "removed" }) {
+  const t = useT();
+  const meta = DIFF_BADGE_META[kind];
+  return (
+    <span
+      title={t(meta.hint)}
+      className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold"
+      style={{ color: meta.colorVar, background: `color-mix(in srgb, ${meta.colorVar} 14%, transparent)` }}
+    >
+      {t(meta.label)}
+    </span>
+  );
+}
+
+/** "10 Jul" in the viewer's local timezone — inventory spans days, not minutes. */
+function formatSeenDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}
+
+function McpInventoryTable({ inventory, diff }: { inventory: McpInventoryRow[]; diff: McpInventoryDiff }) {
+  const t = useT();
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[900px] border-collapse text-[12px]">
+        <thead>
+          <tr className="border-b border-line text-[10px] uppercase tracking-wide text-ink-3">
+            <th className="px-3 py-2 text-left font-medium">{t("Server")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("Agent")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("Source")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("Command / URL")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("Env vars")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("Fingerprint")}</th>
+            <th className="px-3 py-2 text-left font-medium">{t("First–last seen")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {inventory.map((row) => {
+            const kind = diffKind(row, diff);
+            const envNames = row.definition.envNames ?? [];
+            return (
+              <tr
+                key={inventoryKey(row)}
+                className={cn("border-b border-line/60", kind === "removed" && "opacity-60")}
+              >
+                <td className="px-3 py-1.5 align-top">
+                  <div className="flex items-center gap-1.5">
+                    <Plug size={12} className="shrink-0 text-ink-3" />
+                    <span className="aac-truncate font-mono text-[12px] text-ink">{row.name}</span>
+                    {kind && <DiffBadge kind={kind} />}
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-3 py-1.5 align-top">
+                  {row.agent && KNOWN_AGENTS.has(row.agent) ? (
+                    <AgentBadge agent={row.agent as AgentName} />
+                  ) : (
+                    <span className="text-[11px] text-ink-3">{row.agent ?? "—"}</span>
+                  )}
+                </td>
+                <td className="max-w-[160px] px-3 py-1.5 align-top" title={row.sourceFile}>
+                  <span className="aac-truncate block font-mono text-[11px] text-ink-3">
+                    {row.sourceFile.split("/").pop() || row.sourceFile}
+                  </span>
+                </td>
+                <td className="max-w-[220px] px-3 py-1.5 align-top">
+                  <span className="aac-truncate block font-mono text-[11px] text-ink-2">
+                    {row.definition.command ?? row.definition.url ?? "—"}
+                  </span>
+                </td>
+                <td className="max-w-[200px] px-3 py-1.5 align-top">
+                  {envNames.length ? (
+                    <div className="flex flex-wrap gap-1">
+                      {envNames.map((n) => (
+                        <span key={n} className="rounded border border-line bg-surface-2 px-1 py-0.5 font-mono text-[10px] text-ink-3">
+                          {n}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-ink-3">—</span>
+                  )}
+                </td>
+                <td className="whitespace-nowrap px-3 py-1.5 align-top font-mono text-[11px] text-ink-3">
+                  {row.fingerprint.slice(0, 8)}
+                </td>
+                <td className="aac-tnum whitespace-nowrap px-3 py-1.5 align-top text-[11px] text-ink-3">
+                  {formatSeenDate(row.firstSeen)}–{formatSeenDate(row.lastSeen)}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

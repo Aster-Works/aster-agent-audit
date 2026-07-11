@@ -46,6 +46,47 @@ export async function fetchLiveDataset(baseUrl = ""): Promise<Dataset | null> {
   }
 }
 
+/**
+ * One MCP server as remembered by the inventory (mirrors `McpInventoryRow` in
+ * `src/db/index.ts` — that module is server-only, so the shape is duplicated
+ * here rather than imported). Env NAMES only, never values.
+ */
+export type McpInventoryRow = {
+  name: string;
+  sourceFile: string;
+  agent: string | null;
+  fingerprint: string;
+  definition: { command?: string; args?: string[]; url?: string; type?: string; envNames?: string[] };
+  firstSeen: string;
+  lastSeen: string;
+};
+
+export type McpInventoryDiff = {
+  added: McpInventoryRow[];
+  removed: McpInventoryRow[];
+  changed: Array<{ before: McpInventoryRow; after: McpInventoryRow }>;
+  unchanged: number;
+};
+
+export type McpInventoryResponse = { inventory: McpInventoryRow[]; diff: McpInventoryDiff };
+
+/**
+ * Fetch the MCP inventory + change-detection diff from the local collector.
+ * Returns null on any failure (offline, non-ok, network error) so the caller
+ * can show an empty state — there is no demo inventory to fall back to.
+ */
+export async function fetchMcpInventory(baseUrl = ""): Promise<McpInventoryResponse | null> {
+  try {
+    const res = await fetch(`${baseUrl}/api/mcp-inventory`, {
+      headers: { accept: "application/json" },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as McpInventoryResponse;
+  } catch {
+    return null;
+  }
+}
+
 export function getDemoDataset(): Dataset {
   const overview = buildOverview(
     demoSessions,
