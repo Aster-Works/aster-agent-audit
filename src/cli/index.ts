@@ -76,7 +76,12 @@ program
   .command("scan")
   .description("Scan local MCP configuration for security risks (read-only, never executes)")
   .argument("[dir]", "project directory to scan (defaults to the current directory)")
-  .action((dir) => scanCmd(dir));
+  .option("--format <fmt>", "output format: text (default), json, or sarif (2.1.0)")
+  .option("--baseline <file>", "gate only on findings NOT present in this baseline file")
+  .option("--update-baseline <file>", "write the current findings to a baseline file and exit")
+  .action((dir, opts) =>
+    scanCmd(dir, { format: opts.format, baseline: opts.baseline, updateBaseline: opts.updateBaseline })
+  );
 
 program
   .command("serve")
@@ -131,12 +136,13 @@ policy
 
 program
   .command("report")
-  .description("Generate a report. Implemented: --type evidence (machine-readable bundle with chain hashes)")
-  .option("--type <type>", "report type (evidence; security/activity/html arrive later and fail loudly)", "evidence")
-  .option("--session <id>", "limit to a single session")
+  .description("Generate a report. Implemented: --type evidence (JSON bundle), --type security (JSON or --format html)")
+  .option("--type <type>", "report type: evidence | security (others fail loudly)", "evidence")
+  .option("--format <fmt>", "security report format: json (default) or html (print-ready, self-contained)")
+  .option("--session <id>", "limit to a single session (evidence only)")
   .option("--out <file>", "write to a file instead of stdout")
   .option("--db <path>", "path to the SQLite database")
-  .action((opts) => reportCmd({ type: opts.type, session: opts.session, out: opts.out, db: opts.db }));
+  .action((opts) => reportCmd({ type: opts.type, format: opts.format, session: opts.session, out: opts.out, db: opts.db }));
 
 program
   .command("verify")

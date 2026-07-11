@@ -1,14 +1,18 @@
 /**
- * `aster-audit report --type evidence [--session <id>] [--out <file>]`
+ * `aster-audit report --type <evidence|security> [--format html] [--out <file>]`
  *
- * Report types land incrementally. `evidence` is implemented; the others
- * (security / activity / html) come with Phase 5 and FAIL LOUDLY until then —
- * a report command that pretends to succeed would be worse than none.
+ * Report types land incrementally:
+ *   evidence — machine-readable bundle (events + chain hashes + findings + policy)
+ *   security — MCP security posture; `--format html` renders a self-contained,
+ *              print-ready page (use the browser's Print to PDF)
+ * Anything else FAILS LOUDLY — a report command that pretends to succeed
+ * would be worse than none.
  */
 import { writeFileSync } from "node:fs";
 import pc from "picocolors";
 import { buildEvidenceBundle } from "../../server/evidence";
-import { loadPolicyChain } from "../../server/mcp-scan";
+import { loadPolicyChain, scanMcpEnvironment } from "../../server/mcp-scan";
+import { securityReportHtml } from "../../reporting/html";
 import { openDb } from "../../db/index";
 import { CONFIG_DIR, DB_PATH } from "../util/paths";
 import { line } from "../util/ui";
@@ -17,9 +21,9 @@ import { line } from "../util/ui";
 declare const __AAC_VERSION__: string;
 const VERSION = typeof __AAC_VERSION__ === "string" ? __AAC_VERSION__ : "dev";
 
-const IMPLEMENTED = ["evidence"] as const;
+const IMPLEMENTED = ["evidence", "security"] as const;
 
-export function reportCmd(opts: { type?: string; session?: string; out?: string; db?: string }): void {
+export function reportCmd(opts: { type?: string; format?: string; session?: string; out?: string; db?: string }): void {
   const type = opts.type ?? "evidence";
   if (!(IMPLEMENTED as readonly string[]).includes(type)) {
     console.error(
@@ -27,6 +31,21 @@ export function reportCmd(opts: { type?: string; session?: string; out?: string;
         `Nothing was generated.`
     );
     process.exitCode = 2;
+    return;
+  }
+
+  if (type === "security") {
+    const scan = scanMcpEnvironment({ configDir: CONFIG_DIR, fresh: true });
+    const body =
+      opts.format === "html"
+        ? securityReportHtml(scan, { toolVersion: VERSION })
+        : JSON.stringify({ summary: scan.summary, servers: scan.servers, findings: scan.findings }, null, 2);
+    if (opts.out) {
+      writeFileSync(opts.out, body);
+      line(`${pc.green("✔")} Security report written to ${opts.out} ${pc.dim(`(${scan.findings.length} finding(s))`)}`);
+    } else {
+      console.log(body);
+    }
     return;
   }
 

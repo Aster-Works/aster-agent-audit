@@ -347,6 +347,7 @@ function makeFinding(
     description: `${describe} (server "${server}" in ${file}; mirrors AsterGuard ${mirrors})`,
     recommendedAction: action,
     redactedEvidence: redactString(evidence).text,
+    sourceFile,
   };
 }
 

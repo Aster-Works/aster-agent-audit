@@ -85,6 +85,8 @@ export type RiskFinding = {
   redactedEvidence?: string;
   recommendedAction: string;
   ruleId: string;
+  /** Config file the finding came from (MCP scan findings only). */
+  sourceFile?: string;
 };
 
 export type EventLinks = {

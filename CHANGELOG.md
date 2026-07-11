@@ -27,6 +27,18 @@ Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 
 ### Added
 
+- **SARIF 2.1.0 output** — `aster-audit scan --format sarif` emits a minimal,
+  valid SARIF log (modern `AAA-*` rule ids in results, legacy ids preserved in
+  rule properties) for GitHub code scanning and other CI ingestion.
+  `--format json` gives the raw machine-readable scan.
+- **Baseline scanning** — `scan --update-baseline <file>` records the current
+  findings; `scan --baseline <file>` then gates the exit code ONLY on findings
+  not present in the baseline, so existing debt doesn't block CI while new
+  risks do. An unreadable baseline exits 2 with a clear message.
+- **Print-ready HTML security report** — `report --type security --format html`
+  renders a self-contained page (inline CSS, no scripts, no external assets;
+  every value HTML-escaped). Use the browser's Print to PDF — no PDF
+  dependency was added, deliberately.
 - **Codex TOML MCP scanning.** `~/.codex/config.toml`'s `[mcp_servers.<name>]`
   tables are now scanned — parsed with a maintained TOML parser (smol-toml,
   the one new runtime dependency of this release), normalized into the same

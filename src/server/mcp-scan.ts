@@ -139,6 +139,8 @@ export type ScanOptions = {
   policy?: ConsolePolicy;
   /** override discovery with an explicit file list (tests / `scan <dir>`) */
   files?: DiscoveredConfig[];
+  /** bypass the 30s cache — one-shot CLI invocations must see current disk state */
+  fresh?: boolean;
 };
 
 function runScan(opts: ScanOptions): McpEnvironmentScan {
@@ -190,8 +192,9 @@ let cache: { at: number; key: string; result: McpEnvironmentScan } | null = null
 const TTL_MS = 30_000;
 
 export function scanMcpEnvironment(opts: ScanOptions = {}): McpEnvironmentScan {
-  // Explicit file lists / injected policy bypass the cache (tests, scan <dir>).
-  if (opts.files || opts.policy) return runScan(opts);
+  // Explicit file lists / injected policy / fresh bypass the cache
+  // (tests, `scan <dir>`, any one-shot CLI run).
+  if (opts.files || opts.policy || opts.fresh) return runScan(opts);
   const key = `${opts.cwd ?? process.cwd()}|${opts.home ?? homedir()}|${opts.configDir ?? DEFAULT_CONFIG_DIR}`;
   const now = Date.now();
   if (cache && cache.key === key && now - cache.at < TTL_MS) return cache.result;
