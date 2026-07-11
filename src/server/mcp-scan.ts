@@ -20,7 +20,14 @@ import {
   scoreFindings,
   type ScannedServerInput,
 } from "../core/mcp";
-import { applyPolicy, type ConsolePolicy } from "../core/policy";
+import {
+  applyPolicy,
+  mergePolicies,
+  validatePolicy,
+  type ConsolePolicy,
+  type PolicySource,
+  type PolicyV1,
+} from "../core/policy";
 import { DEFAULT_CONFIG_DIR } from "../db/index";
 
 type Discovery = { rel: string; agent: AgentName; scope: "project" | "user" };
@@ -64,24 +71,54 @@ export function discoverMcpConfigs(cwd = process.cwd(), home = homedir()): Disco
   return out;
 }
 
-/** Load `${configDir}/policy.json`. Missing or malformed → empty policy. */
+export type LoadedPolicy = {
+  policy: PolicyV1;
+  sources: PolicySource[];
+  errors: string[];
+  warnings: string[];
+};
+
+/**
+ * Load the policy chain with full validation:
+ *   user level   `${configDir}/policy.json`
+ *   repo local   `${repoDir}/.aster-audit/policy.json` (overrides per field)
+ * A file with validation ERRORS is skipped (reported, never half-applied);
+ * warnings are surfaced but the file is used.
+ */
+export function loadPolicyChain(configDir = DEFAULT_CONFIG_DIR, repoDir?: string): LoadedPolicy {
+  const out: LoadedPolicy = { policy: {}, sources: [], errors: [], warnings: [] };
+
+  const readOne = (path: string, scope: PolicySource["scope"]): PolicyV1 | undefined => {
+    if (!existsSync(path)) return undefined;
+    let raw: unknown;
+    try {
+      raw = JSON.parse(readFileSync(path, "utf8"));
+    } catch (err) {
+      out.errors.push(`${path}: not valid JSON (${(err as Error).message})`);
+      return undefined;
+    }
+    const v = validatePolicy(raw);
+    out.warnings.push(...v.warnings.map((w) => `${path}: ${w}`));
+    if (v.errors.length) {
+      out.errors.push(...v.errors.map((e) => `${path}: ${e}`));
+      return undefined; // never half-apply a broken file
+    }
+    out.sources.push({ path, scope });
+    return v.policy;
+  };
+
+  const user = readOne(join(configDir, "policy.json"), "user") ?? {};
+  const repo = repoDir ? readOne(join(repoDir, ".aster-audit", "policy.json"), "repo") : undefined;
+  out.policy = mergePolicies(user, repo);
+  return out;
+}
+
+/**
+ * Load `${configDir}/policy.json`. Missing or malformed → empty policy.
+ * Kept for existing callers; loadPolicyChain carries errors/warnings/sources.
+ */
 export function loadPolicy(configDir = DEFAULT_CONFIG_DIR): ConsolePolicy {
-  const path = join(configDir, "policy.json");
-  try {
-    if (!existsSync(path)) return {};
-    const raw = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
-    const policy: ConsolePolicy = {};
-    if (Array.isArray(raw.allowedMcpHosts)) {
-      policy.allowedMcpHosts = raw.allowedMcpHosts.filter((h): h is string => typeof h === "string");
-    }
-    if (Array.isArray(raw.ignoreRules)) {
-      policy.ignoreRules = raw.ignoreRules.filter((r): r is string => typeof r === "string");
-    }
-    if (typeof raw.failOn === "string") policy.failOn = raw.failOn as ConsolePolicy["failOn"];
-    return policy;
-  } catch {
-    return {};
-  }
+  return loadPolicyChain(configDir).policy;
 }
 
 export type McpEnvironmentScan = {

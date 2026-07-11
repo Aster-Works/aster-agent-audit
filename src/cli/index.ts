@@ -17,6 +17,7 @@ import { dashboard } from "./commands/dashboard";
 import { doctor } from "./commands/doctor";
 import { init } from "./commands/init";
 import { migrateCmd } from "./commands/migrate";
+import { policyTestCmd, policyValidateCmd } from "./commands/policy";
 import { scanCmd } from "./commands/scan";
 import { serve } from "./commands/serve";
 import { serviceInstall, serviceStatus, serviceUninstall } from "./commands/service";
@@ -113,6 +114,18 @@ hooks
   .command("uninstall")
   .description("Remove collector hooks (backs up before changing)")
   .action(() => hooksUninstallCmd());
+
+const policy = program.command("policy").description("Validate and inspect the finding policy (policy.json)");
+policy
+  .command("validate")
+  .description("Validate user + repo-local policy files; exit non-zero on errors")
+  .argument("[dir]", "repository directory for the repo-local policy (defaults to the current directory)")
+  .action((dir) => policyValidateCmd(dir));
+policy
+  .command("test")
+  .description("Show the effective policy: sources, suppressed rules, severity overrides, scan gate")
+  .argument("[dir]", "repository directory for the repo-local policy (defaults to the current directory)")
+  .action((dir) => policyTestCmd(dir));
 
 program
   .command("migrate")
