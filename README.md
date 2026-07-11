@@ -75,6 +75,12 @@ lowercase keys) before release.
 - **[Privacy & data handling](docs/privacy.md)** — what's stored, where, redaction, how to delete it.
 - **[Audit-trail integrity](docs/audit-integrity.md)** — what the hash chain detects, what it cannot, and the evidence bundle.
 - **[MCP security scan](docs/mcp-security.md)** — the `AAC-MCP-*` rules, posture grade, and `policy.json`.
+- **[Security rules reference](docs/security-rules.md)** — the full rule registry, `AAA-*`/`AAC-*` id mapping, confidence and detection method.
+- **[Policies (`policy.json`)](docs/policies.md)** — every field, precedence, validation warnings, `policy validate`/`policy test`.
+- **[Reports and exports](docs/reports.md)** — evidence bundle, security report, SARIF, scan baselines, dashboard exports.
+- **[Architecture](docs/architecture.md)** — adapters → normalize/redact → risk → storage → enrichment → API → dashboard, with file paths.
+- **[Community, Pro, Team](docs/community-pro-team.md)** — what's free today, what's candidate-only, and why nothing free moves behind a paywall later.
+- **[Commercial architecture](docs/commercial-architecture.md)** — the extension seam design (not implemented in this repo).
 - **[Known limitations](docs/limitations.md)** — what this beta does and does not do.
 - **[Troubleshooting](docs/troubleshooting.md)** — common issues and fixes.
 - **[Contributing](CONTRIBUTING.md)** · **[Changelog](CHANGELOG.md)**
@@ -87,6 +93,9 @@ aster-audit init                 # detect Claude Code / Codex (no agent files to
 aster-audit init --dry-run       # detect only — modifies nothing
 aster-audit init --install-hooks # install collector hooks (backs up existing config first)
 aster-audit scan [dir]           # scan local MCP config for security risks (read-only)
+aster-audit scan --format sarif  # SARIF 2.1.0 for CI / GitHub code scanning (also: --format json)
+aster-audit scan --baseline b.json  # gate CI only on NEW findings (--update-baseline to record)
+aster-audit report --type security --format html  # print-ready HTML report (browser → Print to PDF)
 aster-audit doctor               # check Node, storage, collector health, hooks, MCP posture
 aster-audit verify               # verify the event hash chain (tamper-evidence; read-only)
 aster-audit report --type evidence  # export a machine-readable evidence bundle (events + hashes + findings)
