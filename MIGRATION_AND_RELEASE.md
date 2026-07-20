@@ -87,12 +87,12 @@ a freshly published package are never briefly wrong.
 
 Only after §3 is confirmed live and installable.
 
-- [ ] Deprecate `@asterworks/agent-console` with a message pointing at the new
+- [x] Deprecate `@asterworks/agent-console` (done 2026-07-20) with a message pointing at the new
       package name (do **not** unpublish — that breaks anyone pinned to it):
       ```bash
       npm deprecate @asterworks/agent-console "Renamed to @asterworks/agent-audit — npm install -g @asterworks/agent-audit. See https://github.com/Aster-Works/aster-agent-audit/blob/main/docs/migration-from-agent-console.md"
       ```
-- [ ] Verify the deprecation notice shows up on an install:
+- [x] Verify the deprecation notice shows up on an install:
       ```bash
       npm install -g @asterworks/agent-console   # should print the deprecation warning
       ```
@@ -101,7 +101,7 @@ Only after §3 is confirmed live and installable.
 
 ## 5. Update `package.json` URLs and README for real (post-publish)
 
-- [ ] Confirm §2's URL changes shipped in the published package
+- [x] Confirm §2's URL changes shipped in the published package (0.2.1: repository.url = renamed repo)
       (`npm view @asterworks/agent-audit repository.url`).
 - [x] Update the README's "Not published yet" callouts (English and Japanese)
       now that `@asterworks/agent-audit` is live:
@@ -120,11 +120,11 @@ Only after §3 is confirmed live and installable.
       git tag v$(node -p "require('./package.json').version")
       git push --tags
       ```
-- [ ] Create the GitHub release with `CHANGELOG.md` notes for this version:
+- [x] Create the GitHub release with `CHANGELOG.md` notes for this version:
       ```bash
       gh release create v$(node -p "require('./package.json').version") --notes-file CHANGELOG.md
       ```
-- [ ] Post an announcement (issue, discussion, or release notes) using this
+- [x] Post an announcement (via the v0.2.0 release notes) using this
       template:
 
       ```markdown
