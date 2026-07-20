@@ -50,4 +50,4 @@ export const MIGRATION_MARKER_FILE = "migration.json";
 export const LEGACY_FORWARD_MARKER_FILE = "MIGRATED.json";
 
 /** Current GitHub home. Update via MIGRATION_AND_RELEASE.md when the repo is renamed. */
-export const REPO_URL = "https://github.com/Aster-Works/aster-agent-console";
+export const REPO_URL = "https://github.com/Aster-Works/aster-agent-audit";

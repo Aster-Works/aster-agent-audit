@@ -19,13 +19,13 @@
     "aster-works",
     "audit"
   ],
-  "homepage": "https://github.com/Aster-Works/aster-agent-console#readme",
+  "homepage": "https://github.com/Aster-Works/aster-agent-audit#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Aster-Works/aster-agent-console.git"
+    "url": "git+https://github.com/Aster-Works/aster-agent-audit.git"
   },
   "bugs": {
-    "url": "https://github.com/Aster-Works/aster-agent-console/issues"
+    "url": "https://github.com/Aster-Works/aster-agent-audit/issues"
   },
   "publishConfig": {
     "access": "public"
